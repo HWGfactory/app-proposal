@@ -13,6 +13,7 @@ function baseStructure(category: ProposalCategory): SectionConfig[] {
     { id: 'ANALYSIS', label: '현황 분석', enabled: true },
     { id: 'SOLUTION', label: SOLUTION_LABEL[category], enabled: true },
     { id: 'EFFECT', label: '기대 효과', enabled: true },
+    { id: 'SCOPE', label: '범위 정의 (In/Out Scope)', enabled: true, locked: true },
     { id: 'SCHEDULE', label: '추진 일정', enabled: true },
     {
       id: 'MANAGEMENT', label: '사업 관리 방안', enabled: true,
@@ -28,7 +29,7 @@ function baseStructure(category: ProposalCategory): SectionConfig[] {
   ]
 }
 
-// 상세 버전: 9개 섹션 전체 포함 (기본값)
+// 상세 버전: 10개 섹션 전체 포함 (기본값)
 export function detailedStructure(category: ProposalCategory): SectionConfig[] {
   return baseStructure(category)
 }

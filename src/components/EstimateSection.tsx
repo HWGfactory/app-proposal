@@ -43,7 +43,7 @@ export default function EstimateSection({ value, onChange }: Props) {
     <div className="form-section">
       <div className="form-section-header">
         <span className="w-5 h-5 rounded-[3px] bg-brand-500 text-white text-[10px] font-bold flex items-center justify-center shrink-0">
-          3
+          4
         </span>
         <div className="min-w-0">
           <div className="font-semibold text-ink-900 text-[13px] leading-tight">항목별 견적</div>

@@ -225,10 +225,10 @@ function milestoneTable(items: { phase: string; period: string; tasks: string; o
 }
 
 // ── 견적 테이블 헬퍼 ─────────────────────────────────────────────────────────
-function headerCell(text: string, width: number): TableCell {
+function headerCell(text: string, width: number, fill: string = C.brandDeep): TableCell {
   return new TableCell({
     width: { size: width, type: WidthType.DXA },
-    shading: { fill: C.brandDeep, type: ShadingType.CLEAR },
+    shading: { fill, type: ShadingType.CLEAR },
     children: [new Paragraph({
       children: [TR(text, { bold: true, size: 9, color: C.white })],
       alignment: AlignmentType.CENTER,
@@ -727,6 +727,65 @@ function buildCost(data: ProposalFormData, heading: string): AnyBlock[] {
   ]
 }
 
+// ── V. 범위 정의 (In / Out of Scope, 전제조건, 의존성) ──
+function scopeTable(data: ProposalFormData): Table {
+  const { inScope, outOfScope } = data.scope
+  const rowCount = Math.max(inScope.length, outOfScope.length, 1)
+  const widths = [5000, 5000]
+  const headerRow = new TableRow({
+    tableHeader: true,
+    children: [
+      headerCell('포함 범위 (In Scope)', widths[0], C.accentGreen),
+      headerCell('제외 범위 (Out of Scope)', widths[1], C.accentAmber),
+    ],
+  })
+  const dataRows = Array.from({ length: rowCount }, (_, i) => {
+    const fill = i % 2 === 0 ? C.tableBand : C.white
+    return new TableRow({
+      children: [
+        bodyCell(inScope[i]?.text || '', widths[0], { fill }),
+        bodyCell(outOfScope[i]?.text || '', widths[1], { fill }),
+      ],
+    })
+  })
+  return new Table({
+    width: { size: 100, type: WidthType.PERCENTAGE },
+    columnWidths: widths,
+    rows: [headerRow, ...dataRows],
+    borders: tableBorders(),
+  })
+}
+
+function buildScope(data: ProposalFormData, heading: string): AnyBlock[] {
+  const blocks: AnyBlock[] = [
+    sectionHeading(heading),
+    ...spacer(1),
+    bodyPara('본 제안의 수행 범위를 다음과 같이 명확히 정의합니다. 하단에 명시되지 않은 항목은 이번 단계에 포함하지 않습니다.'),
+    ...spacer(1),
+    scopeTable(data),
+    ...spacer(1),
+  ]
+  if (data.scope.assumptions.length > 0) {
+    blocks.push(
+      subHeading('전제 조건 (Assumptions)'),
+      ...data.scope.assumptions.map((a) => bullet(a.text)),
+      ...spacer(1),
+    )
+  }
+  if (data.scope.dependencies.length > 0) {
+    blocks.push(
+      subHeading('의존성 (Dependencies)'),
+      ...data.scope.dependencies.map((d) => bullet(d.text)),
+      ...spacer(1),
+    )
+  }
+  blocks.push(
+    bodyPara('※ 제외 범위(Out of Scope)에 포함된 항목은 별도 협의 및 추가 계약을 통해서만 진행됩니다.'),
+    ...spacer(2),
+  )
+  return blocks
+}
+
 // ── IX. 당사를 선택해야 하는 이유 ──
 function buildWhyUs(data: ProposalFormData, heading: string): AnyBlock[] {
   return [
@@ -742,7 +801,7 @@ function buildWhyUs(data: ProposalFormData, heading: string): AnyBlock[] {
 }
 
 // ── 섹션 ID → 빌더 라우팅 ──
-const ROMAN = ['I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII', 'IX']
+const ROMAN = ['I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII', 'IX', 'X']
 
 function sectionTitle(id: SectionId, category: ProposalCategory): string {
   const solutionLabel: Record<ProposalCategory, string> = {
@@ -753,6 +812,7 @@ function sectionTitle(id: SectionId, category: ProposalCategory): string {
     ANALYSIS: '현황 분석 및 문제점',
     SOLUTION: solutionLabel[category],
     EFFECT: '기대 효과',
+    SCOPE: '범위 정의 (In / Out of Scope)',
     SCHEDULE: '추진 일정',
     MANAGEMENT: '사업 관리 방안',
     MAINTENANCE: '유지보수 및 지원',
@@ -777,6 +837,7 @@ function buildSection(id: SectionId, data: ProposalFormData, heading: string, su
       if (data.category === 'AI') return buildAIEffect(data, heading)
       if (data.category === 'CLOUD') return buildCloudEffect(data, heading)
       return buildERPEffect(data, heading)
+    case 'SCOPE': return buildScope(data, heading)
     case 'SCHEDULE':
       if (data.category === 'AI') return buildAISchedule(data, heading)
       if (data.category === 'CLOUD') return buildCloudSchedule(data, heading)

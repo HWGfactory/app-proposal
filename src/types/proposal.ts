@@ -34,18 +34,32 @@ export interface EstimateData {
   vatRate: number         // 부가세율 (%)
 }
 
+// ── 범위 정의 (In/Out Scope, 전제조건, 의존성) ──────────────────────────────
+export interface ScopeItem {
+  id: string
+  text: string
+}
+
+export interface ScopeData {
+  inScope: ScopeItem[]        // 포함 범위 (In Scope)
+  outOfScope: ScopeItem[]     // 제외 범위 (Out of Scope)
+  assumptions: ScopeItem[]    // 전제 조건 (Assumptions)
+  dependencies: ScopeItem[]   // 의존성 (Dependencies)
+}
+
 // ── 문서 구성 (섹션 순서 · 포함 여부) ────────────────────────────────────────
-// 표지는 항상 1페이지 고정이라 구성 대상에서 제외. 아래 9개가 배열 순서대로 렌더링됨.
+// 표지는 항상 1페이지 고정이라 구성 대상에서 제외. 아래 10개가 배열 순서대로 렌더링됨.
 export type SectionId =
-  | 'EXEC'        // I.   경영진 요약
-  | 'ANALYSIS'    // II.  현황 분석
-  | 'SOLUTION'    // III. 솔루션 제안
-  | 'EFFECT'      // IV.  기대 효과
-  | 'SCHEDULE'    // V.   추진 일정
-  | 'MANAGEMENT'  // VI.  사업 관리 방안
-  | 'MAINTENANCE' // VII. 유지보수 및 지원
-  | 'COST'        // VIII.비용 제안
-  | 'WHY_US'      // IX.  당사를 선택해야 하는 이유
+  | 'EXEC'        // I.    경영진 요약
+  | 'ANALYSIS'    // II.   현황 분석
+  | 'SOLUTION'    // III.  솔루션 제안
+  | 'EFFECT'      // IV.   기대 효과
+  | 'SCOPE'       // V.    범위 정의 (In/Out Scope)
+  | 'SCHEDULE'    // VI.   추진 일정
+  | 'MANAGEMENT'  // VII.  사업 관리 방안
+  | 'MAINTENANCE' // VIII. 유지보수 및 지원
+  | 'COST'        // IX.   비용 제안
+  | 'WHY_US'      // X.    당사를 선택해야 하는 이유
 
 export interface SubsectionConfig {
   id: string
@@ -73,6 +87,7 @@ export interface BaseFields {
   projectDuration: string      // 예상 기간
   executiveSummary: string     // 한 줄 요약 (AI가 확장)
   estimate: EstimateData        // 항목별 견적
+  scope: ScopeData               // 범위 정의 (In/Out Scope, 전제조건, 의존성)
   structure: SectionConfig[]    // 문서 구성 (순서 · 포함 여부)
 }
 

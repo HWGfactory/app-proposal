@@ -1,10 +1,13 @@
 'use client'
 
 import { useState } from 'react'
-import type { EstimateData, ProposalCategory, ProposalFormData, SectionConfig } from '@/types/proposal'
+import type { EstimateData, ProposalCategory, ProposalFormData, ScopeData, SectionConfig } from '@/types/proposal'
 import EstimateSection from '@/components/EstimateSection'
+import ScopeSection from '@/components/ScopeSection'
 import StructureSection from '@/components/StructureSection'
+import LivePreview from '@/components/LivePreview'
 import { defaultEstimate } from '@/lib/estimate'
+import { defaultScope } from '@/lib/scope'
 import { detailedStructure } from '@/lib/sections'
 import { AI_INDUSTRIES, AI_INDUSTRY_PRESETS, type AIIndustry } from '@/lib/industryPresets'
 
@@ -90,6 +93,10 @@ export default function ProposalForm({ category, onSubmit, onBack, errorMsg }: P
     businessProcess: '', customizationLevel: '', dataVolume: '', goLiveDate: '',
   })
 
+  // ── 범위 정의 (In/Out Scope, 전제조건, 의존성) ──
+  const [scope, setScope] = useState<ScopeData>(defaultScope())
+  const [scopeError, setScopeError] = useState('')
+
   // ── 항목별 견적 ──
   const [estimate, setEstimate] = useState<EstimateData>(defaultEstimate())
   const [estimateError, setEstimateError] = useState('')
@@ -125,6 +132,12 @@ export default function ProposalForm({ category, onSubmit, onBack, errorMsg }: P
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
 
+    if (scope.inScope.length === 0 || scope.outOfScope.length === 0) {
+      setScopeError('범위 정의에 포함 범위와 제외 범위를 각각 최소 1개 이상 입력해주세요.')
+      return
+    }
+    setScopeError('')
+
     if (estimate.laborItems.length === 0 && estimate.costItems.length === 0) {
       setEstimateError('항목별 견적에 최소 1개 이상의 인력 또는 비용 항목을 입력해주세요.')
       return
@@ -133,17 +146,26 @@ export default function ProposalForm({ category, onSubmit, onBack, errorMsg }: P
 
     let payload: ProposalFormData
     if (category === 'AI') {
-      payload = { ...base, ...ai, estimate, structure, category: 'AI' }
+      payload = { ...base, ...ai, estimate, scope, structure, category: 'AI' }
     } else if (category === 'CLOUD') {
-      payload = { ...base, ...cloud, estimate, structure, category: 'CLOUD' }
+      payload = { ...base, ...cloud, estimate, scope, structure, category: 'CLOUD' }
     } else {
-      payload = { ...base, ...erp, estimate, structure, category: 'ERP' }
+      payload = { ...base, ...erp, estimate, scope, structure, category: 'ERP' }
     }
     onSubmit(payload)
   }
 
+  // 실시간 미리보기용 초안 데이터 — 유효성 검증 없이 현재 입력 상태를 그대로 반영
+  const draftData: ProposalFormData =
+    category === 'AI'
+      ? { ...base, ...ai, estimate, scope, structure, category: 'AI' }
+      : category === 'CLOUD'
+      ? { ...base, ...cloud, estimate, scope, structure, category: 'CLOUD' }
+      : { ...base, ...erp, estimate, scope, structure, category: 'ERP' };
+
   return (
-    <div className="max-w-3xl mx-auto">
+    <div className="max-w-[1400px] mx-auto grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_400px] gap-6 items-start">
+    <div>
       {/* 타이틀 */}
       <div className="mb-5 flex items-center gap-3">
         <button onClick={onBack} className="text-ink-400 hover:text-ink-700 transition-colors p-1.5 -ml-1.5 rounded-[4px] hover:bg-surface-sunken">
@@ -400,7 +422,18 @@ export default function ProposalForm({ category, onSubmit, onBack, errorMsg }: P
           </div>
         )}
 
-        {/* ── 섹션 3: 항목별 견적 ── */}
+        {/* ── 섹션 3: 범위 정의 ── */}
+        <ScopeSection value={scope} onChange={setScope} />
+        {scopeError && (
+          <div className="bg-red-50 border border-red-200 text-accent-red text-sm rounded-[4px] px-4 py-3 flex items-center gap-2">
+            <svg className="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z" />
+            </svg>
+            {scopeError}
+          </div>
+        )}
+
+        {/* ── 섹션 4: 항목별 견적 ── */}
         <EstimateSection value={estimate} onChange={setEstimate} />
         {estimateError && (
           <div className="bg-red-50 border border-red-200 text-accent-red text-sm rounded-[4px] px-4 py-3 flex items-center gap-2">
@@ -411,7 +444,7 @@ export default function ProposalForm({ category, onSubmit, onBack, errorMsg }: P
           </div>
         )}
 
-        {/* ── 섹션 4: 문서 구성 ── */}
+        {/* ── 섹션 5: 문서 구성 ── */}
         <StructureSection category={category} value={structure} onChange={setStructure} />
 
         {/* 제출 버튼 */}
@@ -427,6 +460,12 @@ export default function ProposalForm({ category, onSubmit, onBack, errorMsg }: P
           </button>
         </div>
       </form>
+    </div>
+
+    {/* 실시간 미리보기 */}
+    <div className="hidden lg:block sticky top-[88px]">
+      <LivePreview data={draftData} />
+    </div>
     </div>
   )
 }

@@ -137,7 +137,7 @@ export default function StructureSection({ category, value, onChange }: Props) {
       <div className="form-section-header justify-between">
         <div className="flex items-center gap-2.5">
           <span className="w-5 h-5 rounded-[3px] bg-brand-500 text-white text-[10px] font-bold flex items-center justify-center shrink-0">
-            4
+            5
           </span>
           <div className="min-w-0">
             <div className="font-semibold text-ink-900 text-[13px] leading-tight">문서 구성</div>
