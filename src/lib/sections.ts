@@ -26,17 +26,18 @@ function baseStructure(category: ProposalCategory): SectionConfig[] {
     },
     { id: 'MAINTENANCE', label: '유지보수 및 지원', enabled: true },
     { id: 'COST', label: '비용 제안', enabled: true, locked: true },
+    { id: 'COMPANY', label: '회사 소개 및 수행 실적', enabled: true },
     { id: 'WHY_US', label: '당사를 선택해야 하는 이유', enabled: true },
   ]
 }
 
-// 상세 버전: 11개 섹션 전체 포함 (기본값)
+// 상세 버전: 12개 섹션 전체 포함 (기본값)
 export function detailedStructure(category: ProposalCategory): SectionConfig[] {
   return baseStructure(category)
 }
 
-// 간략 버전: 핵심만 남긴 축약 구성 — 현황분석 · 산출물명세 · 사업관리 · 유지보수 · 선택이유 제외
-const BRIEF_DISABLED: SectionId[] = ['ANALYSIS', 'DELIVERABLES', 'MANAGEMENT', 'MAINTENANCE', 'WHY_US']
+// 간략 버전: 핵심만 남긴 축약 구성 — 현황분석 · 산출물명세 · 사업관리 · 유지보수 · 회사소개 · 선택이유 제외
+const BRIEF_DISABLED: SectionId[] = ['ANALYSIS', 'DELIVERABLES', 'MANAGEMENT', 'MAINTENANCE', 'COMPANY', 'WHY_US']
 
 export function briefStructure(category: ProposalCategory): SectionConfig[] {
   return baseStructure(category).map((s) => (

@@ -1,13 +1,15 @@
 'use client'
 
 import { useState } from 'react'
-import type { EstimateData, ProposalCategory, ProposalFormData, ScopeData, SectionConfig } from '@/types/proposal'
+import type { CompanyProfile, EstimateData, ProposalCategory, ProposalFormData, ScopeData, SectionConfig } from '@/types/proposal'
 import EstimateSection from '@/components/EstimateSection'
 import ScopeSection from '@/components/ScopeSection'
+import CompanyProfileSection from '@/components/CompanyProfileSection'
 import StructureSection from '@/components/StructureSection'
 import LivePreview from '@/components/LivePreview'
 import { defaultEstimate } from '@/lib/estimate'
 import { defaultScope } from '@/lib/scope'
+import { defaultCompanyProfile } from '@/lib/companyProfile'
 import { detailedStructure } from '@/lib/sections'
 import { AI_INDUSTRIES, AI_INDUSTRY_PRESETS, type AIIndustry } from '@/lib/industryPresets'
 
@@ -101,6 +103,9 @@ export default function ProposalForm({ category, onSubmit, onBack, errorMsg }: P
   const [estimate, setEstimate] = useState<EstimateData>(defaultEstimate())
   const [estimateError, setEstimateError] = useState('')
 
+  // ── 회사 소개 및 수행 실적 ──
+  const [companyProfile, setCompanyProfile] = useState<CompanyProfile>(defaultCompanyProfile())
+
   // ── 문서 구성 (섹션 순서 · 포함 여부) ──
   const [structure, setStructure] = useState<SectionConfig[]>(() => detailedStructure(category))
 
@@ -146,11 +151,11 @@ export default function ProposalForm({ category, onSubmit, onBack, errorMsg }: P
 
     let payload: ProposalFormData
     if (category === 'AI') {
-      payload = { ...base, ...ai, estimate, scope, structure, category: 'AI' }
+      payload = { ...base, ...ai, estimate, scope, companyProfile, structure, category: 'AI' }
     } else if (category === 'CLOUD') {
-      payload = { ...base, ...cloud, estimate, scope, structure, category: 'CLOUD' }
+      payload = { ...base, ...cloud, estimate, scope, companyProfile, structure, category: 'CLOUD' }
     } else {
-      payload = { ...base, ...erp, estimate, scope, structure, category: 'ERP' }
+      payload = { ...base, ...erp, estimate, scope, companyProfile, structure, category: 'ERP' }
     }
     onSubmit(payload)
   }
@@ -158,10 +163,10 @@ export default function ProposalForm({ category, onSubmit, onBack, errorMsg }: P
   // 실시간 미리보기용 초안 데이터 — 유효성 검증 없이 현재 입력 상태를 그대로 반영
   const draftData: ProposalFormData =
     category === 'AI'
-      ? { ...base, ...ai, estimate, scope, structure, category: 'AI' }
+      ? { ...base, ...ai, estimate, scope, companyProfile, structure, category: 'AI' }
       : category === 'CLOUD'
-      ? { ...base, ...cloud, estimate, scope, structure, category: 'CLOUD' }
-      : { ...base, ...erp, estimate, scope, structure, category: 'ERP' };
+      ? { ...base, ...cloud, estimate, scope, companyProfile, structure, category: 'CLOUD' }
+      : { ...base, ...erp, estimate, scope, companyProfile, structure, category: 'ERP' };
 
   return (
     <div className="max-w-[1400px] mx-auto grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_400px] gap-6 items-start">
@@ -444,7 +449,10 @@ export default function ProposalForm({ category, onSubmit, onBack, errorMsg }: P
           </div>
         )}
 
-        {/* ── 섹션 5: 문서 구성 ── */}
+        {/* ── 섹션 5: 회사 소개 및 수행 실적 ── */}
+        <CompanyProfileSection value={companyProfile} onChange={setCompanyProfile} />
+
+        {/* ── 섹션 6: 문서 구성 ── */}
         <StructureSection category={category} value={structure} onChange={setStructure} />
 
         {/* 제출 버튼 */}

@@ -8,7 +8,7 @@ interface Props {
   data: ProposalFormData
 }
 
-const ROMAN = ['I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII', 'IX', 'X', 'XI']
+const ROMAN = ['I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII', 'IX', 'X', 'XI', 'XII']
 
 const SOLUTION_TITLE: Record<ProposalFormData['category'], string> = {
   AI: 'AI 솔루션 제안',
@@ -27,6 +27,7 @@ const SECTION_TITLE: Record<SectionId, (category: ProposalFormData['category']) 
   MANAGEMENT: () => '사업 관리 방안',
   MAINTENANCE: () => '유지보수 및 지원',
   COST: () => '비용 제안',
+  COMPANY: () => '회사 소개 및 수행 실적',
   WHY_US: () => '당사를 선택해야 하는 이유',
 }
 
@@ -189,6 +190,16 @@ function ScopePreview({ data }: { data: ProposalFormData }) {
   )
 }
 
+function CompanyProfilePreview({ data }: { data: ProposalFormData }) {
+  const { intro, coreCompetencies, trackRecords } = data.companyProfile
+  return (
+    <div className="flex flex-col gap-2">
+      <FieldRow field={{ label: '회사 소개', value: intro }} />
+      <StaticNote text={`핵심 역량 ${coreCompetencies.length}건 · 수행 실적 ${trackRecords.length}건 포함`} />
+    </div>
+  )
+}
+
 function sectionBody(id: SectionId, data: ProposalFormData) {
   switch (id) {
     case 'EXEC':
@@ -217,6 +228,8 @@ function sectionBody(id: SectionId, data: ProposalFormData) {
       return <StaticNote text="유지보수·SLA 표준 문구가 자동 생성됩니다" />
     case 'COST':
       return <CostPreview data={data} />
+    case 'COMPANY':
+      return <CompanyProfilePreview data={data} />
     case 'WHY_US':
       return <StaticNote text="차별화 포인트 표준 문구가 자동 생성됩니다" />
   }

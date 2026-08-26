@@ -47,8 +47,22 @@ export interface ScopeData {
   dependencies: ScopeItem[]   // 의존성 (Dependencies)
 }
 
+// ── 회사 소개 및 수행 실적 ───────────────────────────────────────────────────
+export interface TrackRecordItem {
+  id: string
+  client: string        // 고객사명 또는 프로젝트명 (익명 처리 가능)
+  year: string            // 수행 연도
+  description: string   // 프로젝트 개요 및 성과
+}
+
+export interface CompanyProfile {
+  intro: string                        // 회사 소개 (연혁, 핵심 사업, 비전)
+  coreCompetencies: ScopeItem[]        // 핵심 역량 / 강점
+  trackRecords: TrackRecordItem[]      // 주요 수행 실적
+}
+
 // ── 문서 구성 (섹션 순서 · 포함 여부) ────────────────────────────────────────
-// 표지는 항상 1페이지 고정이라 구성 대상에서 제외. 아래 11개가 배열 순서대로 렌더링됨.
+// 표지는 항상 1페이지 고정이라 구성 대상에서 제외. 아래 12개가 배열 순서대로 렌더링됨.
 export type SectionId =
   | 'EXEC'          // I.    경영진 요약
   | 'ANALYSIS'      // II.   현황 분석
@@ -60,7 +74,8 @@ export type SectionId =
   | 'MANAGEMENT'    // VIII. 사업 관리 방안
   | 'MAINTENANCE'   // IX.   유지보수 및 지원
   | 'COST'          // X.    비용 제안
-  | 'WHY_US'        // XI.   당사를 선택해야 하는 이유
+  | 'COMPANY'       // XI.   회사 소개 및 수행 실적
+  | 'WHY_US'        // XII.  당사를 선택해야 하는 이유
 
 export interface SubsectionConfig {
   id: string
@@ -89,6 +104,7 @@ export interface BaseFields {
   executiveSummary: string     // 한 줄 요약 (AI가 확장)
   estimate: EstimateData        // 항목별 견적
   scope: ScopeData               // 범위 정의 (In/Out Scope, 전제조건, 의존성)
+  companyProfile: CompanyProfile // 회사 소개 및 수행 실적
   structure: SectionConfig[]    // 문서 구성 (순서 · 포함 여부)
 }
 

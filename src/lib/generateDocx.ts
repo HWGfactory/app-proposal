@@ -1031,7 +1031,63 @@ function buildScope(data: ProposalFormData, heading: string): AnyBlock[] {
   return blocks
 }
 
-// ── XI. 당사를 선택해야 하는 이유 ──
+// ── XI. 회사 소개 및 수행 실적 ──
+function trackRecordTable(items: { client: string; year: string; description: string }[]): Table {
+  const widths = scaleWidths([2400, 1200, 6400])
+  const headerRow = new TableRow({
+    tableHeader: true,
+    children: [
+      headerCell('고객사 / 프로젝트명', widths[0]),
+      headerCell('연도', widths[1]),
+      headerCell('개요 및 성과', widths[2]),
+    ],
+  })
+  const dataRows = items.map((it, i) => {
+    const fill = i % 2 === 0 ? C.tableBand : C.white
+    return new TableRow({
+      children: [
+        bodyCell(it.client || '-', widths[0], { fill, bold: true, color: C.brandMain }),
+        bodyCell(it.year || '-', widths[1], { fill, align: AlignmentType.CENTER }),
+        bodyCell(it.description || '-', widths[2], { fill }),
+      ],
+    })
+  })
+  return new Table({
+    width: { size: 100, type: WidthType.PERCENTAGE },
+    columnWidths: widths,
+    rows: [headerRow, ...dataRows],
+    borders: tableBorders(),
+  })
+}
+
+function buildCompanyProfile(data: ProposalFormData, heading: string): AnyBlock[] {
+  const { intro, coreCompetencies, trackRecords } = data.companyProfile
+  const blocks: AnyBlock[] = [
+    sectionHeading(heading),
+    ...spacer(1),
+    bodyPara(intro || `${data.companyName}는 ${CATEGORY_LABEL[data.category]} 분야에서 축적한 경험을 바탕으로 본 프로젝트를 수행합니다. 상세 연혁 및 소개 자료는 별도로 제공 가능합니다.`),
+    ...spacer(1),
+  ]
+
+  if (coreCompetencies.length > 0) {
+    blocks.push(
+      subHeading('핵심 역량 / 강점'),
+      ...coreCompetencies.map((c) => checkItem(c.text || '-')),
+      ...spacer(1),
+    )
+  }
+
+  blocks.push(subHeading('주요 수행 실적'))
+  if (trackRecords.length > 0) {
+    blocks.push(trackRecordTable(trackRecords))
+  } else {
+    blocks.push(bodyPara('수행 실적은 협의 시 별도 레퍼런스 자료로 제공됩니다.'))
+  }
+  blocks.push(...spacer(2))
+  return blocks
+}
+
+// ── XII. 당사를 선택해야 하는 이유 ──
 function buildWhyUs(data: ProposalFormData, heading: string): AnyBlock[] {
   return [
     sectionHeading(heading),
@@ -1046,7 +1102,7 @@ function buildWhyUs(data: ProposalFormData, heading: string): AnyBlock[] {
 }
 
 // ── 섹션 ID → 빌더 라우팅 ──
-const ROMAN = ['I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII', 'IX', 'X', 'XI']
+const ROMAN = ['I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII', 'IX', 'X', 'XI', 'XII']
 
 function sectionTitle(id: SectionId, category: ProposalCategory): string {
   const solutionLabel: Record<ProposalCategory, string> = {
@@ -1063,6 +1119,7 @@ function sectionTitle(id: SectionId, category: ProposalCategory): string {
     MANAGEMENT: '사업 관리 방안',
     MAINTENANCE: '유지보수 및 지원',
     COST: '비용 제안',
+    COMPANY: '회사 소개 및 수행 실적',
     WHY_US: '당사를 선택해야 하는 이유',
   }
   return map[id]
@@ -1095,6 +1152,7 @@ function buildSection(id: SectionId, data: ProposalFormData, heading: string, su
     case 'MANAGEMENT': return buildManagement(data, heading, subEnabled)
     case 'MAINTENANCE': return buildMaintenance(data, heading)
     case 'COST': return buildCost(data, heading)
+    case 'COMPANY': return buildCompanyProfile(data, heading)
     case 'WHY_US': return buildWhyUs(data, heading)
   }
 }
