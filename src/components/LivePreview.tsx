@@ -8,7 +8,7 @@ interface Props {
   data: ProposalFormData
 }
 
-const ROMAN = ['I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII', 'IX', 'X']
+const ROMAN = ['I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII', 'IX', 'X', 'XI']
 
 const SOLUTION_TITLE: Record<ProposalFormData['category'], string> = {
   AI: 'AI 솔루션 제안',
@@ -23,6 +23,7 @@ const SECTION_TITLE: Record<SectionId, (category: ProposalFormData['category']) 
   EFFECT: () => '기대 효과',
   SCOPE: () => '범위 정의',
   SCHEDULE: () => '추진 일정',
+  DELIVERABLES: () => '단계별 산출물 명세',
   MANAGEMENT: () => '사업 관리 방안',
   MAINTENANCE: () => '유지보수 및 지원',
   COST: () => '비용 제안',
@@ -205,6 +206,8 @@ function sectionBody(id: SectionId, data: ProposalFormData) {
       return <ScopePreview data={data} />
     case 'SCHEDULE':
       return <StaticNote text="Phase 1~4 추진 일정표가 자동 생성됩니다" />
+    case 'DELIVERABLES':
+      return <StaticNote text="단계별 문서·코드·디자인·운영가이드·교육 산출물 목록이 자동 생성됩니다" />
     case 'MANAGEMENT': {
       const subs = data.structure.find((s) => s.id === 'MANAGEMENT')?.subsections ?? []
       const labels: Record<string, string> = { ORG: '수행 조직', QUALITY: '품질 보증', RISK: '리스크 관리' }

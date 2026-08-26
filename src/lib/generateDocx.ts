@@ -21,6 +21,8 @@ const C = {
   white:      'FFFFFF',
   accentGreen:'0D9488',
   accentAmber:'D97706',
+  accentViolet:'7C3AED',
+  accentRose: 'DB2777',
   tableBand:  'F8F9FC',
 }
 
@@ -154,9 +156,9 @@ function twoColTable(rows: [string, string][]): Table {
   })
 }
 
-function milestoneTable(items: { phase: string; period: string; tasks: string; output: string }[]): Table {
-  const widths = [1500, 1200, 5000, 2300]
-  const headers = ['단계', '기간', '주요 활동', '산출물']
+function milestoneTable(items: { phase: string; period: string; tasks: string }[]): Table {
+  const widths = [1800, 1500, 6700]
+  const headers = ['단계', '기간', '주요 활동']
 
   const headerRow = new TableRow({
     tableHeader: true,
@@ -199,15 +201,6 @@ function milestoneTable(items: { phase: string; period: string; tasks: string; o
           shading: { fill: i % 2 === 0 ? C.tableBand : C.white, type: ShadingType.CLEAR },
           children: [new Paragraph({
             children: [TR(m.tasks, { size: 9 })],
-            spacing: { before: pt(6), after: pt(6) },
-            indent: { left: twip(0.05) },
-          })],
-        }),
-        new TableCell({
-          width: { size: widths[3], type: WidthType.DXA },
-          shading: { fill: i % 2 === 0 ? C.tableBand : C.white, type: ShadingType.CLEAR },
-          children: [new Paragraph({
-            children: [TR(m.output, { size: 9, color: C.grayText })],
             spacing: { before: pt(6), after: pt(6) },
             indent: { left: twip(0.05) },
           })],
@@ -615,10 +608,10 @@ function buildAISchedule(d: Extract<ProposalFormData, { category: 'AI' }>, headi
     sectionHeading(heading),
     ...spacer(1),
     milestoneTable([
-      { phase: 'Phase 1', period: '1~4주',   tasks: '현황 분석, 데이터 수집·전처리, 파일럿 범위 확정',            output: '현황분석 보고서' },
-      { phase: 'Phase 2', period: '5~10주',  tasks: `${d.aiModel} 모델 개발, 학습 데이터 구축, 초기 성능 검증`, output: 'PoC 결과 보고서' },
-      { phase: 'Phase 3', period: '11~14주', tasks: `${d.integrationSystems} 연동 개발, UI 개발, 통합 테스트`,   output: '시스템 연동 명세서' },
-      { phase: 'Phase 4', period: '15~16주', tasks: 'UAT, 사용자 교육, 안정화 운영, 인수인계',                   output: '운영 매뉴얼, 최종 보고서' },
+      { phase: 'Phase 1', period: '1~4주',   tasks: '현황 분석, 데이터 수집·전처리, 파일럿 범위 확정' },
+      { phase: 'Phase 2', period: '5~10주',  tasks: `${d.aiModel} 모델 개발, 학습 데이터 구축, 초기 성능 검증` },
+      { phase: 'Phase 3', period: '11~14주', tasks: `${d.integrationSystems} 연동 개발, UI 개발, 통합 테스트` },
+      { phase: 'Phase 4', period: '15~16주', tasks: 'UAT, 사용자 교육, 안정화 운영, 인수인계' },
     ]),
   ]
 }
@@ -628,10 +621,10 @@ function buildCloudSchedule(d: Extract<ProposalFormData, { category: 'CLOUD' }>,
     sectionHeading(heading),
     ...spacer(1),
     milestoneTable([
-      { phase: 'Phase 1', period: '1~3주',   tasks: '현황 분석, 클라우드 아키텍처 설계, 마이그레이션 계획 수립', output: '클라우드 설계서' },
-      { phase: 'Phase 2', period: '4~8주',   tasks: '클라우드 환경 구축, 네트워크·보안 설정, PoC 검증',        output: '환경 구성 보고서' },
-      { phase: 'Phase 3', period: '9~14주',  tasks: `${d.migrationScope} 단계적 마이그레이션, 성능 테스트`,   output: '마이그레이션 완료 보고서' },
-      { phase: 'Phase 4', period: '15~16주', tasks: 'DR 테스트, 운영 전환, 모니터링 체계 구축',               output: '운영 인수인계서' },
+      { phase: 'Phase 1', period: '1~3주',   tasks: '현황 분석, 클라우드 아키텍처 설계, 마이그레이션 계획 수립' },
+      { phase: 'Phase 2', period: '4~8주',   tasks: '클라우드 환경 구축, 네트워크·보안 설정, PoC 검증' },
+      { phase: 'Phase 3', period: '9~14주',  tasks: `${d.migrationScope} 단계적 마이그레이션, 성능 테스트` },
+      { phase: 'Phase 4', period: '15~16주', tasks: 'DR 테스트, 운영 전환, 모니터링 체계 구축' },
     ]),
   ]
 }
@@ -641,15 +634,127 @@ function buildERPSchedule(d: Extract<ProposalFormData, { category: 'ERP' }>, hea
     sectionHeading(heading),
     ...spacer(1),
     milestoneTable([
-      { phase: 'Phase 1', period: '1~4주',   tasks: '현황 분석, 요구사항 정의, ERP 설계 확정',                              output: '요구사항 정의서, 설계서' },
-      { phase: 'Phase 2', period: '5~12주',  tasks: `${d.erpScope} 모듈 개발·설정, ${d.customizationLevel} 커스터마이징`, output: '모듈 구현 완료 보고서' },
-      { phase: 'Phase 3', period: '13~16주', tasks: `${d.dataVolume} 데이터 이관, 통합 테스트, 사용자 교육`,               output: '이관 완료 보고서, 교육 자료' },
-      { phase: 'Phase 4', period: '17~18주', tasks: `병행 운영, 안정화, ${d.goLiveDate} Go-Live 전환`,                     output: '운영 매뉴얼, Go-Live 완료 보고서' },
+      { phase: 'Phase 1', period: '1~4주',   tasks: '현황 분석, 요구사항 정의, ERP 설계 확정' },
+      { phase: 'Phase 2', period: '5~12주',  tasks: `${d.erpScope} 모듈 개발·설정, ${d.customizationLevel} 커스터마이징` },
+      { phase: 'Phase 3', period: '13~16주', tasks: `${d.dataVolume} 데이터 이관, 통합 테스트, 사용자 교육` },
+      { phase: 'Phase 4', period: '17~18주', tasks: `병행 운영, 안정화, ${d.goLiveDate} Go-Live 전환` },
     ]),
   ]
 }
 
-// ── VI. 사업 관리 방안 (하위 항목 on/off) ──
+// ── VII. 단계별 산출물 명세 ──
+interface Deliverable { phase: string; type: '문서' | '코드' | '디자인' | '운영가이드' | '교육'; name: string }
+
+const DELIVERABLE_TYPE_COLOR: Record<Deliverable['type'], string> = {
+  '문서': C.brandMain,
+  '코드': C.accentGreen,
+  '디자인': C.accentViolet,
+  '운영가이드': C.accentAmber,
+  '교육': C.accentRose,
+}
+
+function deliverablesTable(items: Deliverable[]): Table {
+  const widths = [1600, 1600, 6800]
+  const headerRow = new TableRow({
+    tableHeader: true,
+    children: [
+      headerCell('단계', widths[0]),
+      headerCell('유형', widths[1]),
+      headerCell('산출물', widths[2]),
+    ],
+  })
+
+  let lastPhase = ''
+  let bandToggle = false
+  const dataRows = items.map((it) => {
+    if (it.phase !== lastPhase) { bandToggle = !bandToggle; lastPhase = it.phase }
+    const fill = bandToggle ? C.tableBand : C.white
+    return new TableRow({
+      children: [
+        bodyCell(it.phase, widths[0], { fill, bold: true, color: C.brandMain }),
+        bodyCell(it.type, widths[1], { fill, bold: true, color: DELIVERABLE_TYPE_COLOR[it.type] }),
+        bodyCell(it.name, widths[2], { fill }),
+      ],
+    })
+  })
+
+  return new Table({
+    width: { size: 100, type: WidthType.PERCENTAGE },
+    columnWidths: widths,
+    rows: [headerRow, ...dataRows],
+    borders: tableBorders(),
+  })
+}
+
+function buildAIDeliverables(d: Extract<ProposalFormData, { category: 'AI' }>, heading: string): AnyBlock[] {
+  return [
+    sectionHeading(heading),
+    ...spacer(1),
+    bodyPara('각 단계에서 실제로 전달되는 산출물을 문서·코드·디자인·운영가이드·교육으로 구분하여 명시합니다. "무엇을 받는지"에 대한 답입니다.'),
+    ...spacer(1),
+    deliverablesTable([
+      { phase: 'Phase 1', type: '문서', name: '현황 분석 보고서 (AS-IS 프로세스, Pain Point 정리)' },
+      { phase: 'Phase 1', type: '문서', name: '데이터 진단 및 파일럿 범위 정의서' },
+      { phase: 'Phase 2', type: '코드', name: `${d.aiModel} 학습 파이프라인 소스코드` },
+      { phase: 'Phase 2', type: '문서', name: 'PoC 결과 보고서 (성능 지표 포함)' },
+      { phase: 'Phase 3', type: '코드', name: `${d.integrationSystems} 연동 모듈 소스코드` },
+      { phase: 'Phase 3', type: '디자인', name: '대시보드 · 관리자 화면 UI 디자인 산출물' },
+      { phase: 'Phase 3', type: '문서', name: '시스템 연동 명세서 (API 명세, 인터페이스 정의서)' },
+      { phase: 'Phase 4', type: '운영가이드', name: '운영 매뉴얼 (모니터링, 장애 대응 절차)' },
+      { phase: 'Phase 4', type: '교육', name: '관리자·실무자 대상 사용자 교육 및 교육 자료' },
+      { phase: 'Phase 4', type: '문서', name: '프로젝트 최종 보고서' },
+    ]),
+    ...spacer(2),
+  ]
+}
+
+function buildCloudDeliverables(d: Extract<ProposalFormData, { category: 'CLOUD' }>, heading: string): AnyBlock[] {
+  return [
+    sectionHeading(heading),
+    ...spacer(1),
+    bodyPara('각 단계에서 실제로 전달되는 산출물을 문서·코드·디자인·운영가이드·교육으로 구분하여 명시합니다. "무엇을 받는지"에 대한 답입니다.'),
+    ...spacer(1),
+    deliverablesTable([
+      { phase: 'Phase 1', type: '문서', name: '클라우드 아키텍처 설계서' },
+      { phase: 'Phase 1', type: '문서', name: '마이그레이션 계획서 (일정·리스크·롤백 전략 포함)' },
+      { phase: 'Phase 2', type: '코드', name: 'IaC(Terraform 등) 인프라 코드' },
+      { phase: 'Phase 2', type: '문서', name: '네트워크·보안 설정 명세서' },
+      { phase: 'Phase 2', type: '문서', name: 'PoC 검증 결과 보고서' },
+      { phase: 'Phase 3', type: '코드', name: '마이그레이션 자동화 스크립트' },
+      { phase: 'Phase 3', type: '문서', name: `${d.migrationScope} 마이그레이션 완료 보고서` },
+      { phase: 'Phase 3', type: '문서', name: '성능 테스트 결과 보고서' },
+      { phase: 'Phase 4', type: '운영가이드', name: '클라우드 운영 매뉴얼 (모니터링, DR 절차)' },
+      { phase: 'Phase 4', type: '교육', name: '운영팀 대상 클라우드 운영 교육' },
+      { phase: 'Phase 4', type: '문서', name: '운영 인수인계서' },
+    ]),
+    ...spacer(2),
+  ]
+}
+
+function buildERPDeliverables(d: Extract<ProposalFormData, { category: 'ERP' }>, heading: string): AnyBlock[] {
+  return [
+    sectionHeading(heading),
+    ...spacer(1),
+    bodyPara('각 단계에서 실제로 전달되는 산출물을 문서·코드·디자인·운영가이드·교육으로 구분하여 명시합니다. "무엇을 받는지"에 대한 답입니다.'),
+    ...spacer(1),
+    deliverablesTable([
+      { phase: 'Phase 1', type: '문서', name: '요구사항 정의서' },
+      { phase: 'Phase 1', type: '문서', name: `${d.erpScope} ERP 시스템 설계서 (모듈별 프로세스 흐름도)` },
+      { phase: 'Phase 2', type: '코드', name: '커스터마이징 개발 소스 및 형상관리 이력' },
+      { phase: 'Phase 2', type: '디자인', name: '화면(UI) 설계서' },
+      { phase: 'Phase 2', type: '문서', name: '모듈 구현 완료 보고서' },
+      { phase: 'Phase 3', type: '문서', name: '데이터 이관 완료 보고서 (검증 결과 포함)' },
+      { phase: 'Phase 3', type: '교육', name: '부서별 사용자 교육 자료 및 교육 세션' },
+      { phase: 'Phase 3', type: '문서', name: '통합 테스트 결과 보고서' },
+      { phase: 'Phase 4', type: '운영가이드', name: 'ERP 운영 매뉴얼 (관리자용)' },
+      { phase: 'Phase 4', type: '운영가이드', name: '유지보수 및 장애 대응 가이드' },
+      { phase: 'Phase 4', type: '문서', name: `Go-Live 완료 보고서 (목표일: ${d.goLiveDate})` },
+    ]),
+    ...spacer(2),
+  ]
+}
+
+// ── VIII. 사업 관리 방안 (하위 항목 on/off) ──
 function buildManagement(data: ProposalFormData, heading: string, subEnabled: Record<string, boolean>): AnyBlock[] {
   const blocks: AnyBlock[] = [sectionHeading(heading), ...spacer(1)]
 
@@ -691,7 +796,7 @@ function buildManagement(data: ProposalFormData, heading: string, subEnabled: Re
   return blocks
 }
 
-// ── VII. 유지보수 및 지원 ──
+// ── IX. 유지보수 및 지원 ──
 function buildMaintenance(data: ProposalFormData, heading: string): AnyBlock[] {
   return [
     sectionHeading(heading),
@@ -706,7 +811,7 @@ function buildMaintenance(data: ProposalFormData, heading: string): AnyBlock[] {
   ]
 }
 
-// ── VIII. 비용 제안 (항목별 견적 — 항상 포함) ──
+// ── X. 비용 제안 (항목별 견적 — 항상 포함) ──
 function buildCost(data: ProposalFormData, heading: string): AnyBlock[] {
   return [
     sectionHeading(heading),
@@ -786,7 +891,7 @@ function buildScope(data: ProposalFormData, heading: string): AnyBlock[] {
   return blocks
 }
 
-// ── IX. 당사를 선택해야 하는 이유 ──
+// ── XI. 당사를 선택해야 하는 이유 ──
 function buildWhyUs(data: ProposalFormData, heading: string): AnyBlock[] {
   return [
     sectionHeading(heading),
@@ -801,7 +906,7 @@ function buildWhyUs(data: ProposalFormData, heading: string): AnyBlock[] {
 }
 
 // ── 섹션 ID → 빌더 라우팅 ──
-const ROMAN = ['I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII', 'IX', 'X']
+const ROMAN = ['I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII', 'IX', 'X', 'XI']
 
 function sectionTitle(id: SectionId, category: ProposalCategory): string {
   const solutionLabel: Record<ProposalCategory, string> = {
@@ -814,6 +919,7 @@ function sectionTitle(id: SectionId, category: ProposalCategory): string {
     EFFECT: '기대 효과',
     SCOPE: '범위 정의 (In / Out of Scope)',
     SCHEDULE: '추진 일정',
+    DELIVERABLES: '단계별 산출물 명세',
     MANAGEMENT: '사업 관리 방안',
     MAINTENANCE: '유지보수 및 지원',
     COST: '비용 제안',
@@ -842,6 +948,10 @@ function buildSection(id: SectionId, data: ProposalFormData, heading: string, su
       if (data.category === 'AI') return buildAISchedule(data, heading)
       if (data.category === 'CLOUD') return buildCloudSchedule(data, heading)
       return buildERPSchedule(data, heading)
+    case 'DELIVERABLES':
+      if (data.category === 'AI') return buildAIDeliverables(data, heading)
+      if (data.category === 'CLOUD') return buildCloudDeliverables(data, heading)
+      return buildERPDeliverables(data, heading)
     case 'MANAGEMENT': return buildManagement(data, heading, subEnabled)
     case 'MAINTENANCE': return buildMaintenance(data, heading)
     case 'COST': return buildCost(data, heading)
