@@ -26,12 +26,29 @@ const C = {
   tableBand:  'F8F9FC',
 }
 
+// docx.js의 spacing/indent/border는 트윕(1pt = 20trip) 단위지만, TextRun.size는
+// 하프포인트(1pt = 2 half-points) 단위다. 이 둘을 pt() 하나로 같이 써서 폰트 크기가
+// 실제 의도한 값의 10배로 부풀려지던 버그가 있었다 — 반드시 구분해서 사용할 것.
 const pt  = (n: number) => n * 20
+const halfPt = (n: number) => n * 2
 const twip = convertInchesToTwip
+
+// 본문 섹션의 실제 인쇄 가능 너비(twip). docx 기본 용지는 A4(11906twip)이며
+// 좌우 여백은 아래 buildXXX 섹션 설정과 반드시 일치해야 한다 — 여기서 벗어나면
+// 표의 gridCol 합이 여백을 침범해 표 전체가 오른쪽으로 밀려 보이는 문제가 생긴다.
+const PAGE_WIDTH = 11906
+const CONTENT_WIDTH = PAGE_WIDTH - twip(1.4) - twip(1.2)
+
+// 비율만 맞춰 적은 widths 배열(합계 상관없음)을 실제 인쇄 가능 너비에 맞게 재배분한다.
+function scaleWidths(widths: number[]): number[] {
+  const total = widths.reduce((sum, w) => sum + w, 0)
+  const scale = CONTENT_WIDTH / total
+  return widths.map((w) => Math.round(w * scale))
+}
 
 // ── TextRun 헬퍼 ──────────────────────────────────────────────────────────────
 const TR = (text: string, opts: { bold?: boolean; size?: number; color?: string } = {}) =>
-  new TextRun({ text, bold: opts.bold ?? false, size: pt(opts.size ?? 10), color: opts.color ?? C.darkText })
+  new TextRun({ text, bold: opts.bold ?? false, size: halfPt(opts.size ?? 10), color: opts.color ?? C.darkText })
 
 // ── 단락 헬퍼 ────────────────────────────────────────────────────────────────
 function spacer(n = 1): Paragraph[] {
@@ -109,10 +126,11 @@ function infoBox(label: string, value: string): Table {
         indent: { left: twip(0.1) },
       })],
     })
+  const widths = scaleWidths([2400, 7600])
   return new Table({
     width: { size: 100, type: WidthType.PERCENTAGE },
-    columnWidths: [2400, 7600],
-    rows: [new TableRow({ children: [cell(label, true, C.brandLight, 2400), cell(value, false, C.white, 7600)] })],
+    columnWidths: widths,
+    rows: [new TableRow({ children: [cell(label, true, C.brandLight, widths[0]), cell(value, false, C.white, widths[1])] })],
     borders: {
       top:              { style: BorderStyle.SINGLE, size: 6, color: C.grayLine },
       bottom:           { style: BorderStyle.SINGLE, size: 6, color: C.grayLine },
@@ -125,14 +143,15 @@ function infoBox(label: string, value: string): Table {
 }
 
 function twoColTable(rows: [string, string][]): Table {
+  const widths = scaleWidths([3000, 7000])
   return new Table({
     width: { size: 100, type: WidthType.PERCENTAGE },
-    columnWidths: [3000, 7000],
+    columnWidths: widths,
     rows: rows.map(([label, value], i) =>
       new TableRow({
         children: [
           new TableCell({
-            width: { size: 3000, type: WidthType.DXA },
+            width: { size: widths[0], type: WidthType.DXA },
             shading: { fill: i % 2 === 0 ? C.brandLight : C.tableBand, type: ShadingType.CLEAR },
             children: [new Paragraph({
               children: [TR(label, { bold: true, size: 9, color: C.brandDeep })],
@@ -141,7 +160,7 @@ function twoColTable(rows: [string, string][]): Table {
             })],
           }),
           new TableCell({
-            width: { size: 7000, type: WidthType.DXA },
+            width: { size: widths[1], type: WidthType.DXA },
             shading: { fill: C.white, type: ShadingType.CLEAR },
             children: [new Paragraph({
               children: [TR(value, { size: 10 })],
@@ -157,7 +176,7 @@ function twoColTable(rows: [string, string][]): Table {
 }
 
 function milestoneTable(items: { phase: string; period: string; tasks: string }[]): Table {
-  const widths = [1800, 1500, 6700]
+  const widths = scaleWidths([1800, 1500, 6700])
   const headers = ['단계', '기간', '주요 활동']
 
   const headerRow = new TableRow({
@@ -245,7 +264,7 @@ function bodyCell(text: string, width: number, opts: { align?: (typeof Alignment
 
 function laborEstimateTable(data: ProposalFormData): Table {
   const items = data.estimate.laborItems
-  const widths = [2400, 1400, 1600, 2100, 2500]
+  const widths = scaleWidths([2400, 1400, 1600, 2100, 2500])
   const headerRow = new TableRow({
     tableHeader: true,
     children: [
@@ -296,7 +315,7 @@ function laborEstimateTable(data: ProposalFormData): Table {
 
 function costEstimateTable(data: ProposalFormData): Table {
   const items = data.estimate.costItems
-  const widths = [1600, 3400, 1200, 1800, 2000]
+  const widths = scaleWidths([1600, 3400, 1200, 1800, 2000])
   const headerRow = new TableRow({
     tableHeader: true,
     children: [
@@ -347,7 +366,7 @@ function costEstimateTable(data: ProposalFormData): Table {
 
 function estimateSummaryTable(data: ProposalFormData): Table {
   const t = calcEstimateTotals(data.estimate)
-  const widths = [6000, 4000]
+  const widths = scaleWidths([6000, 4000])
   const row = (label: string, value: string, opts: { fill?: string; bold?: boolean; size?: number; color?: string } = {}) =>
     new TableRow({
       children: [
@@ -425,7 +444,7 @@ function buildAIAnalysis(d: Extract<ProposalFormData, { category: 'AI' }>, headi
     bodyPara(`${d.clientName}는 ${d.clientIndustry} 업종으로, 현재 다음과 같은 운영상의 문제에 직면해 있습니다.`),
     ...spacer(1),
     bullet(d.currentPainPoint),
-    bullet('데이터 기반 의사결정 체계 미흡 — 수동 분석에 의존한 비효율 지속'),
+    bullet('데이터 기반 의사결정 체계 미흡으로 수동 분석에 의존한 비효율 지속'),
     bullet('반복 업무 자동화 부재로 인한 인건비 증가 및 오류 발생'),
     ...spacer(1),
     subHeading('2.2 AS-IS → TO-BE 개선 방향'),
@@ -450,7 +469,7 @@ function buildCloudAnalysis(d: Extract<ProposalFormData, { category: 'CLOUD' }>,
     infoBox('현재 인프라', d.currentInfra),
     ...spacer(1),
     bullet('On-premise 운영으로 인한 높은 CAPEX 및 유지보수 비용'),
-    bullet('급격한 트래픽 증가 대응 불가 — 확장성 한계'),
+    bullet('급격한 트래픽 증가 대응 불가, 확장성 한계'),
     bullet('노후화된 시스템 장애 위험 및 비즈니스 연속성 위협'),
     bullet(`컴플라이언스 충족 어려움: ${d.complianceRequirements}`),
     ...spacer(2),
@@ -472,7 +491,7 @@ function buildERPAnalysis(d: Extract<ProposalFormData, { category: 'ERP' }>, hea
     ]),
     ...spacer(1),
     bullet('부서 간 데이터 단절로 인한 정보 흐름 비효율'),
-    bullet(`${d.currentSystem} 한계 — 실시간 경영 가시성 부족`),
+    bullet(`${d.currentSystem} 한계로 실시간 경영 가시성 부족`),
     bullet('수동 처리에 따른 오류·결산 지연·감사 추적 어려움'),
     ...spacer(2),
   ]
@@ -498,10 +517,10 @@ function buildAISolution(d: Extract<ProposalFormData, { category: 'AI' }>, headi
     infoBox('서비스 Layer',        `API Gateway → ${d.integrationSystems} 연동 → 대시보드·모니터링`),
     ...spacer(1),
     subHeading('3.3 주요 기능 및 특장점'),
-    checkItem('실시간 AI 추론 — 응답 Latency 500ms 이하 목표'),
+    checkItem('실시간 AI 추론 (응답 Latency 500ms 이하 목표)'),
     checkItem(`${d.integrationSystems} 기존 시스템 원클릭 연동`),
     checkItem('모델 성능 모니터링 및 자동 재학습 파이프라인 제공'),
-    checkItem('설명 가능한 AI (XAI) — 의사결정 근거 시각화'),
+    checkItem('설명 가능한 AI (XAI), 의사결정 근거 시각화'),
     checkItem('데이터 암호화 및 개인정보 처리 방침 완전 준수'),
     ...(d.complianceNote ? [checkItem(d.complianceNote)] : []),
     ...spacer(2),
@@ -523,11 +542,11 @@ function buildCloudSolution(d: Extract<ProposalFormData, { category: 'CLOUD' }>,
     ]),
     ...spacer(1),
     subHeading('3.2 아키텍처 설계 방향'),
-    checkItem(`${d.targetArchitecture} 기반 — 확장 가능한 인프라 구성`),
+    checkItem(`${d.targetArchitecture} 기반의 확장 가능한 인프라 구성`),
     checkItem('멀티 AZ 구성으로 고가용성 99.9% 이상 보장'),
     checkItem(`${d.complianceRequirements} 컴플라이언스 자동화 적용`),
     checkItem('비용 최적화: Reserved Instance·Savings Plans 활용 및 Auto Scaling 정책 수립'),
-    checkItem('IaC(Terraform) 기반 인프라 전체 코드화 — 배포 자동화'),
+    checkItem('IaC(Terraform) 기반 인프라 전체 코드화 및 배포 자동화'),
     ...spacer(1),
     subHeading('3.3 DR / 백업 정책'),
     bodyPara(`재해복구(DR) 및 백업 전략: ${d.disasterRecovery}`),
@@ -581,7 +600,7 @@ function buildCloudEffect(d: Extract<ProposalFormData, { category: 'CLOUD' }>, h
     twoColTable([
       ['비용 절감', 'On-premise 대비 TCO 30~40% 절감'],
       ['가용성',   '멀티 AZ 이중화 → 서비스 가용성 99.9% 이상'],
-      ['확장성',   '트래픽에 따른 자동 확장 — 서비스 중단 없는 스케일업'],
+      ['확장성',   '트래픽에 따른 자동 확장, 서비스 중단 없는 스케일업'],
       ['최적화',    d.optimizationGoal],
     ]),
     ...spacer(2),
@@ -654,7 +673,7 @@ const DELIVERABLE_TYPE_COLOR: Record<Deliverable['type'], string> = {
 }
 
 function deliverablesTable(items: Deliverable[]): Table {
-  const widths = [1600, 1600, 6800]
+  const widths = scaleWidths([1600, 1600, 6800])
   const headerRow = new TableRow({
     tableHeader: true,
     children: [
@@ -777,7 +796,7 @@ function buildManagement(data: ProposalFormData, heading: string, subEnabled: Re
       checkItem('단계별 마일스톤 산출물 고객 검토 및 승인 절차 운영'),
       checkItem('주간 진도 보고 및 이슈 에스컬레이션 체계'),
       checkItem('ISO 9001 기반 품질 관리 프로세스 적용'),
-      checkItem('형상관리(Git) 활용 — 전체 버전 이력 추적'),
+      checkItem('형상관리(Git) 활용, 전체 버전 이력 추적'),
       ...spacer(1),
     )
   }
@@ -803,7 +822,7 @@ function buildMaintenance(data: ProposalFormData, heading: string): AnyBlock[] {
     ...spacer(1),
     twoColTable([
       ['무상 보증',   '오픈 후 6개월간 결함 수정 및 장애 대응 무상 지원'],
-      ['유상 유지보수', '월정액 계약 — SLA 기반 응대 시간 보장'],
+      ['유상 유지보수', '월정액 계약, SLA 기반 응대 시간 보장'],
       ['장애 대응',   '24×7 모니터링, 장애 발생 시 4시간 내 현장·원격 대응'],
       ['기술 이전',   '운영 매뉴얼 제공, 관리자 교육 최소 2회 이상'],
     ]),
@@ -836,7 +855,7 @@ function buildCost(data: ProposalFormData, heading: string): AnyBlock[] {
 function scopeTable(data: ProposalFormData): Table {
   const { inScope, outOfScope } = data.scope
   const rowCount = Math.max(inScope.length, outOfScope.length, 1)
-  const widths = [5000, 5000]
+  const widths = scaleWidths([5000, 5000])
   const headerRow = new TableRow({
     tableHeader: true,
     children: [
@@ -898,7 +917,7 @@ function buildWhyUs(data: ProposalFormData, heading: string): AnyBlock[] {
     ...spacer(1),
     bullet(`${CATEGORY_LABEL[data.category]} 분야 전문 수행 역량 및 다수 레퍼런스 보유`),
     bullet('검증된 방법론과 재사용 가능한 솔루션 자산으로 빠른 구축 가능'),
-    bullet('고객 맞춤형 접근 — 표준 솔루션이 아닌 최적화된 설계'),
+    bullet('고객 맞춤형 접근, 표준 솔루션이 아닌 최적화된 설계'),
     bullet('구축 이후 운영까지 End-to-End 책임 지원 체계'),
     bullet('경쟁력 있는 가격과 투명한 비용 구조 제공'),
     ...spacer(2),
@@ -969,7 +988,7 @@ function buildCover(data: ProposalFormData): Paragraph[] {
       spacing: { after: pt(16) },
     }),
     new Paragraph({
-      children: [new TextRun({ text: data.proposalTitle, bold: true, size: pt(26), color: C.brandDeep })],
+      children: [new TextRun({ text: data.proposalTitle, bold: true, size: halfPt(26), color: C.brandDeep })],
       alignment: AlignmentType.CENTER,
       spacing: { after: pt(8) },
     }),
@@ -1005,7 +1024,7 @@ function buildCover(data: ProposalFormData): Paragraph[] {
       spacing: { after: pt(4) },
     }),
     new Paragraph({
-      children: [TR('CONFIDENTIAL — 본 문서는 대외비입니다.', { size: 9, color: C.accentAmber })],
+      children: [TR('CONFIDENTIAL · 본 문서는 대외비입니다.', { size: 9, color: C.accentAmber })],
       alignment: AlignmentType.CENTER,
       spacing: { before: pt(16) },
     }),
@@ -1025,7 +1044,7 @@ export async function generateProposalDocx(data: ProposalFormData): Promise<Blob
   const doc = new Document({
     styles: {
       default: {
-        document: { run: { font: '맑은 고딕', size: pt(10) } },
+        document: { run: { font: '맑은 고딕', size: halfPt(10) } },
       },
     },
     sections: [
@@ -1063,9 +1082,9 @@ export async function generateProposalDocx(data: ProposalFormData): Promise<Blob
               new Paragraph({
                 children: [
                   TR('CONFIDENTIAL  ', { bold: true, size: 8, color: C.accentAmber }),
-                  TR(`— © ${new Date().getFullYear()} ${data.companyName}`, { size: 8, color: C.grayText }),
-                  new TextRun({ children: ['\t'], size: pt(8) }),
-                  new TextRun({ children: [PageNumber.CURRENT], size: pt(8), color: C.grayText }),
+                  TR(`· © ${new Date().getFullYear()} ${data.companyName}`, { size: 8, color: C.grayText }),
+                  new TextRun({ children: ['\t'], size: halfPt(8) }),
+                  new TextRun({ children: [PageNumber.CURRENT], size: halfPt(8), color: C.grayText }),
                 ],
                 tabStops: [{ type: 'right', position: twip(6) }],
                 border: { top: { style: BorderStyle.SINGLE, size: 4, color: C.grayLine } },
