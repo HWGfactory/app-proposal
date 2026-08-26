@@ -406,6 +406,39 @@ function estimateSummaryTable(data: ProposalFormData): Table {
   })
 }
 
+// ── 도입 전/후 비교 테이블 (기대 효과 섹션 전용) ────────────────────────────────
+interface EffectMetric { metric: string; before: string; after: string; improvement: string }
+
+function beforeAfterTable(items: EffectMetric[]): Table {
+  const widths = scaleWidths([2200, 2600, 2600, 2400])
+  const headerRow = new TableRow({
+    tableHeader: true,
+    children: [
+      headerCell('지표', widths[0]),
+      headerCell('도입 전', widths[1]),
+      headerCell('도입 후', widths[2]),
+      headerCell('개선율', widths[3]),
+    ],
+  })
+  const dataRows = items.map((it, i) => {
+    const fill = i % 2 === 0 ? C.tableBand : C.white
+    return new TableRow({
+      children: [
+        bodyCell(it.metric, widths[0], { fill, bold: true, color: C.brandMain }),
+        bodyCell(it.before, widths[1], { fill, align: AlignmentType.CENTER }),
+        bodyCell(it.after, widths[2], { fill, align: AlignmentType.CENTER }),
+        bodyCell(it.improvement, widths[3], { fill, align: AlignmentType.CENTER, bold: true, color: C.accentGreen }),
+      ],
+    })
+  })
+  return new Table({
+    width: { size: 100, type: WidthType.PERCENTAGE },
+    columnWidths: widths,
+    rows: [headerRow, ...dataRows],
+    borders: tableBorders(),
+  })
+}
+
 // ─── 섹션 빌더 ────────────────────────────────────────────────────────────────
 // 문서 구성(순서·포함 여부) 설정에 따라 조립되는 단위. 각 함수는 최종 heading 문자열
 // (예: "II. 현황 분석 및 문제점")을 받아 자체 sectionHeading부터 렌더링한다.
@@ -440,19 +473,30 @@ function buildAIAnalysis(d: Extract<ProposalFormData, { category: 'AI' }>, headi
   return [
     sectionHeading(heading),
     ...spacer(1),
-    subHeading('2.1 현재 운영 현황 및 Pain Point'),
-    bodyPara(`${d.clientName}는 ${d.clientIndustry} 업종으로, 현재 다음과 같은 운영상의 문제에 직면해 있습니다.`),
+    subHeading('2.1 현재 운영 현황 개요'),
+    bodyPara(`${d.clientName}는 ${d.clientIndustry} 업종으로, 현재 다음과 같은 운영상의 문제에 직면해 있습니다. 아래에서는 각 문제를 현상 · 원인 · 영향의 3단계로 나누어 분석합니다.`),
     ...spacer(1),
-    bullet(d.currentPainPoint),
-    bullet('데이터 기반 의사결정 체계 미흡으로 수동 분석에 의존한 비효율 지속'),
-    bullet('반복 업무 자동화 부재로 인한 인건비 증가 및 오류 발생'),
+    subHeading('문제 ① · 현장 대응 지연 및 처리 편차'),
+    bodyPara(`[현상] ${d.currentPainPoint}`),
+    bodyPara('[원인] 상담·처리 업무 전반이 담당자의 수기 확인과 경험적 판단에 의존하고 있어, 동일한 유형의 문의라도 처리 시간과 결과 품질이 담당자별로 크게 달라집니다. 업무 매뉴얼과 과거 처리 이력이 시스템화되어 있지 않아 신규 인력의 숙련에도 상당한 시간이 소요됩니다.'),
+    bodyPara(`[영향] 처리 편차는 고객 불만과 재문의로 이어져 전체 처리량을 다시 늘리는 악순환을 만들고, ${d.clientIndustry} 업종 특성상 응대 품질이 곧 고객 이탈률에 직접적인 영향을 미치는 만큼 방치할 경우 매출 손실로 이어질 수 있습니다.`),
+    ...spacer(1),
+    subHeading('문제 ② · 데이터 기반 의사결정 체계 미흡'),
+    bodyPara('[현상] 상담·처리 이력이 축적되고는 있지만 정형화된 분석 없이 개별 조회 수준에 머물러 있어, 어떤 유형의 문의가 늘고 있는지와 어떤 응대가 재문의를 줄이는지에 대한 정량적 근거를 확보하지 못하고 있습니다.'),
+    bodyPara('[원인] 데이터가 여러 시스템에 분산 저장되어 있고 통합 분석 체계가 부재하여, 의사결정에 필요한 지표를 산출하려면 매번 수작업 집계를 거쳐야 합니다.'),
+    bodyPara('[영향] 경영진과 실무 관리자가 감(感)에 의존한 의사결정을 내릴 수밖에 없어 인력 배치·교육·프로세스 개선의 우선순위를 데이터로 뒷받침하지 못하고, 개선 효과 역시 사후 체감으로만 확인하는 상황이 반복되고 있습니다.'),
+    ...spacer(1),
+    subHeading('문제 ③ · 반복 업무 자동화 부재'),
+    bodyPara('[현상] 문의 접수, 단순 조회, 정형화된 답변이 필요한 반복 업무까지 담당자가 직접 처리하고 있어, 실제 전문성이 필요한 고난도 상담에 투입할 시간이 부족합니다.'),
+    bodyPara(`[원인] ${d.integrationSystems || '기존 업무 시스템'}과 연계된 자동 응대·분류 체계가 없어 모든 문의가 사람을 거쳐야만 처리되는 구조입니다.`),
+    bodyPara('[영향] 반복 업무에 소요되는 시간만큼 인건비가 추가로 발생하고, 담당자 피로도 누적에 따른 오류율 상승과 이직률 증가라는 2차 비용까지 발생하고 있습니다.'),
     ...spacer(1),
     subHeading('2.2 AS-IS → TO-BE 개선 방향'),
     twoColTable([
       ['AI 활용 케이스',   d.aiUseCase],
       ['핵심 목표 KPI',    d.targetKPI],
-      ['보유 데이터 자산', d.dataAssets],
-      ['연동 대상 시스템', d.integrationSystems],
+      ['보유 데이터 자산', d.dataAssets || '프로젝트 착수 후 데이터 진단을 통해 확정'],
+      ['연동 대상 시스템', d.integrationSystems || '요구사항 분석 단계에서 확정'],
       ...(d.complianceNote ? [['업종 컴플라이언스 요건', d.complianceNote] as [string, string]] : []),
     ]),
     ...spacer(2),
@@ -506,23 +550,47 @@ function buildAISolution(d: Extract<ProposalFormData, { category: 'AI' }>, headi
     bodyPara(`본 제안은 ${d.aiModel} 기술을 중심으로, ${d.clientName}의 ${d.aiUseCase} 문제를 해결하는 맞춤형 AI 솔루션을 제공합니다.`),
     ...spacer(1),
     bullet(`적용 AI 모델: ${d.aiModel}`),
-    bullet(`파일럿 범위: ${d.pilotScope}`),
-    bullet(`연동 시스템: ${d.integrationSystems}`),
+    bullet(`파일럿 범위: ${d.pilotScope || '착수 협의 후 확정'}`),
+    bullet(`연동 시스템: ${d.integrationSystems || '요구사항 분석 단계에서 확정'}`),
     ...spacer(1),
     subHeading('3.2 시스템 아키텍처 (3-Tier 구조)'),
-    infoBox('데이터 수집 Layer',  `${d.dataAssets} → 전처리 파이프라인 → Feature Store`),
+    infoBox('데이터 수집 Layer',  `${d.dataAssets || '기존 보유 데이터'} → 전처리 파이프라인 → Feature Store`),
+    bodyPara('원천 데이터를 정제·표준화하여 모델이 바로 학습·추론에 사용할 수 있는 형태로 변환하는 계층입니다. 데이터 품질이 곧 모델 성능으로 직결되므로, 결측치 처리와 이상치 탐지를 자동화된 파이프라인으로 상시 수행합니다.'),
     ...spacer(1),
     infoBox('AI 모델 Layer',       `${d.aiModel} → 학습·추론 서버 → 모델 레지스트리`),
+    bodyPara('실제 학습과 추론이 이루어지는 핵심 계층으로, 모델 버전을 레지스트리로 관리하여 성능 저하 시 이전 버전으로 즉시 롤백할 수 있는 구조를 갖춥니다.'),
     ...spacer(1),
-    infoBox('서비스 Layer',        `API Gateway → ${d.integrationSystems} 연동 → 대시보드·모니터링`),
+    infoBox('서비스 Layer',        `API Gateway → ${d.integrationSystems || '연동 대상 시스템'} 연동 → 대시보드·모니터링`),
+    bodyPara('최종 사용자와 기존 업무 시스템이 실제로 마주하는 계층입니다. API Gateway를 통해 인증·트래픽 제어를 일원화하고, 운영 대시보드로 실시간 처리 현황을 상시 확인할 수 있습니다.'),
     ...spacer(1),
     subHeading('3.3 주요 기능 및 특장점'),
-    checkItem('실시간 AI 추론 (응답 Latency 500ms 이하 목표)'),
-    checkItem(`${d.integrationSystems} 기존 시스템 원클릭 연동`),
-    checkItem('모델 성능 모니터링 및 자동 재학습 파이프라인 제공'),
-    checkItem('설명 가능한 AI (XAI), 의사결정 근거 시각화'),
-    checkItem('데이터 암호화 및 개인정보 처리 방침 완전 준수'),
-    ...(d.complianceNote ? [checkItem(d.complianceNote)] : []),
+    subHeading('실시간 AI 추론 (Low-Latency Inference)'),
+    bodyPara(`무엇을: 사용자 요청에 대해 응답 Latency 500ms 이내로 실시간 추론 결과를 반환합니다. 왜: ${d.aiUseCase} 업무는 응대 속도가 곧 고객 경험이므로 배치 처리가 아닌 실시간 처리 구조가 필수적입니다. 어떻게: 경량화된 추론 서버와 캐싱 계층을 결합해 동시 요청이 몰리는 상황에서도 목표 응답 속도를 유지합니다.`),
+    checkItem('응답 Latency 500ms 이하 목표'),
+    ...spacer(1),
+    subHeading(`${d.integrationSystems || '기존 업무 시스템'} 원클릭 연동`),
+    bodyPara(`무엇을: ${d.integrationSystems || '고객사의 기존 업무 시스템'}과 API 기반으로 연동하여 별도 화면 전환 없이 하나의 인터페이스에서 업무가 완결되도록 합니다. 왜: 담당자가 여러 시스템을 오가며 정보를 대조하는 과정에서 발생하는 시간 손실과 입력 오류를 근본적으로 제거하기 위함입니다. 어떻게: 표준 REST API와 웹훅을 활용해 기존 시스템의 데이터 구조를 변경하지 않고 연동합니다.`),
+    checkItem('기존 시스템 무중단 연동'),
+    ...spacer(1),
+    subHeading('모델 성능 모니터링 및 자동 재학습'),
+    bodyPara('무엇을: 운영 중인 모델의 정확도와 응답 품질을 상시 모니터링하고, 성능이 기준치 이하로 떨어지면 최신 데이터로 자동 재학습을 트리거합니다. 왜: 실제 운영 데이터의 패턴은 시간이 지나며 변화(Data Drift)하기 때문에, 최초 구축 시점의 성능을 방치하면 서비스 품질이 점진적으로 저하됩니다. 어떻게: 예측 결과와 실제 처리 결과를 비교하는 피드백 루프를 구성하고, 임계치 이탈 시 알림과 함께 재학습 파이프라인을 자동 실행합니다.'),
+    checkItem('데이터 드리프트 자동 감지 및 알림'),
+    ...spacer(1),
+    subHeading('설명 가능한 AI (Explainable AI)'),
+    bodyPara('무엇을: AI가 특정 응답이나 분류 결과를 도출한 근거를 사람이 이해할 수 있는 형태로 함께 제공합니다. 왜: 담당자와 고객 모두 결과가 나온 이유를 신뢰할 수 있어야 실제 업무에 도입할 수 있기 때문입니다. 어떻게: 판단 근거가 된 입력 요소를 시각적으로 하이라이트하고, 신뢰도 점수를 함께 표기합니다.'),
+    checkItem('의사결정 근거 시각화 및 신뢰도 점수 제공'),
+    ...spacer(1),
+    subHeading('데이터 암호화 및 개인정보 보호'),
+    bodyPara(`무엇을: 저장·전송 구간의 데이터를 암호화하고, ${d.complianceNote || '관련 개인정보 보호 규정'}을 준수하는 처리 방침을 적용합니다. 왜: 상담 데이터에는 민감한 개인정보가 포함될 수 있어 규정 준수는 선택이 아닌 필수 요건입니다. 어떻게: 전송 구간은 TLS, 저장 구간은 AES-256 암호화를 적용하고, 접근 권한을 역할 기반으로 통제합니다.`),
+    checkItem(d.complianceNote || '개인정보 처리 방침 완전 준수'),
+    ...spacer(1),
+    subHeading('3.4 기술 선정 근거'),
+    bodyPara(`본 제안은 ${d.aiModel} 기반 접근을 채택했습니다. 규칙 기반(Rule-based) 시스템은 구축이 빠르지만 예외 상황 대응력이 낮고, 완전 자체 개발 모델은 초기 데이터 확보와 학습 기간이 길어 일정 내 목표 달성이 어렵습니다. 반면 ${d.aiModel}은 검증된 사전학습 기반 위에서 ${d.clientName}의 도메인 데이터로 빠르게 특화할 수 있어, 목표 기간 내 핵심 목표 KPI(${d.targetKPI}) 달성 가능성이 가장 높다고 판단했습니다.`),
+    twoColTable([
+      ['구축 속도',   '사전학습 모델 활용으로 단기간 내 도메인 특화 가능'],
+      ['예외 대응력', '규칙 기반 대비 다양한 문의 유형에 유연하게 대응 가능'],
+      ['확장성',     '신규 케이스 추가 시 재학습만으로 대응, 규칙 재작성 불필요'],
+    ]),
     ...spacer(2),
   ]
 }
@@ -583,12 +651,23 @@ function buildAIEffect(d: Extract<ProposalFormData, { category: 'AI' }>, heading
   return [
     sectionHeading(heading),
     ...spacer(1),
-    twoColTable([
-      ['목표 KPI',    d.targetKPI],
-      ['운영 효율',  '수동 처리 시간 50~70% 단축'],
-      ['품질 향상',  'AI 기반 오류 감지로 불량률 30% 개선'],
-      ['의사결정',   '실시간 인사이트 기반 데이터 드리븐 경영 실현'],
+    bodyPara(`본 솔루션 도입을 통해 정량적 성과와 정성적 변화를 함께 기대할 수 있습니다. 아래 지표는 핵심 목표 KPI(${d.targetKPI})를 기준으로 산출한 목표치이며, 실제 성과는 파일럿 운영 결과에 따라 보정됩니다.`),
+    ...spacer(1),
+    subHeading('4.1 정량적 기대 효과'),
+    beforeAfterTable([
+      { metric: '평균 처리 시간',   before: '기존 대비 높음', after: '대폭 단축',   improvement: '목표 달성 시 70%↓' },
+      { metric: '자동 처리율',      before: '0%',            after: '70% 이상',    improvement: '신규 확보' },
+      { metric: '오류·재문의율',    before: '기준치',        after: '30% 개선',    improvement: '30%↓' },
+      { metric: '응대 가능 시간대', before: '업무 시간 한정', after: '24시간 상시', improvement: '신규 확보' },
     ]),
+    ...spacer(1),
+    subHeading('4.2 정성적 기대 효과'),
+    bodyPara('수치로 환산하기 어려운 조직·업무 차원의 변화도 함께 기대됩니다.'),
+    bullet('실시간 인사이트 기반의 데이터 드리븐 의사결정 문화 정착'),
+    bullet('상담 인력이 반복 업무에서 벗어나 고난도 상담과 고객 관계 관리에 집중'),
+    bullet('신규 인력 온보딩 기간 단축, AI가 기본 응대를 지원하며 학습 곡선 완화'),
+    ...spacer(1),
+    bodyPara(`도입 전에는 "${d.currentPainPoint}" 상황이 반복되었다면, 도입 후에는 반복적·정형적 문의는 AI가 실시간으로 처리하고 상담 인력은 예외 상황과 고부가가치 응대에 집중하는 구조로 전환됩니다.`),
     ...spacer(2),
   ]
 }
@@ -629,9 +708,22 @@ function buildAISchedule(d: Extract<ProposalFormData, { category: 'AI' }>, headi
     milestoneTable([
       { phase: 'Phase 1', period: '1~4주',   tasks: '현황 분석, 데이터 수집·전처리, 파일럿 범위 확정' },
       { phase: 'Phase 2', period: '5~10주',  tasks: `${d.aiModel} 모델 개발, 학습 데이터 구축, 초기 성능 검증` },
-      { phase: 'Phase 3', period: '11~14주', tasks: `${d.integrationSystems} 연동 개발, UI 개발, 통합 테스트` },
+      { phase: 'Phase 3', period: '11~14주', tasks: `${d.integrationSystems || '기존 시스템'} 연동 개발, UI 개발, 통합 테스트` },
       { phase: 'Phase 4', period: '15~16주', tasks: 'UAT, 사용자 교육, 안정화 운영, 인수인계' },
     ]),
+    ...spacer(1),
+    subHeading('Phase 1 상세 · 현황 분석 및 파일럿 준비'),
+    bodyPara(`${d.clientName}의 현행 업무 프로세스와 보유 데이터를 진단하고, ${d.pilotScope || '초기 적용 범위'}를 기준으로 파일럿 범위를 확정합니다. 이 단계의 완료 기준은 데이터 진단 보고서 및 파일럿 범위 정의서 승인입니다.`),
+    ...spacer(1),
+    subHeading('Phase 2 상세 · 모델 개발 및 PoC 검증'),
+    bodyPara(`${d.aiModel} 기반 모델을 ${d.clientName}의 도메인 데이터로 학습시키고, 핵심 목표 KPI(${d.targetKPI}) 대비 초기 성능을 검증합니다. 완료 기준은 PoC 결과 보고서 승인 및 목표 성능 기준 충족입니다.`),
+    ...spacer(1),
+    subHeading('Phase 3 상세 · 시스템 연동 및 통합 테스트'),
+    bodyPara(`${d.integrationSystems || '기존 업무 시스템'}과의 API 연동을 개발하고, 실제 업무 시나리오 기반 통합 테스트를 수행합니다. 완료 기준은 전체 연동 시나리오에 대한 테스트 통과입니다.`),
+    ...spacer(1),
+    subHeading('Phase 4 상세 · 안정화 및 인수인계'),
+    bodyPara('실사용자 대상 UAT를 진행하고, 관리자·실무자 교육을 완료한 뒤 운영 안정화 기간을 거쳐 정식 인수인계합니다. 완료 기준은 운영 매뉴얼 승인 및 Go-Live 완료입니다.'),
+    ...spacer(2),
   ]
 }
 
@@ -780,6 +872,7 @@ function buildManagement(data: ProposalFormData, heading: string, subEnabled: Re
   if (subEnabled.ORG) {
     blocks.push(
       subHeading('6.1 수행 조직'),
+      bodyPara('본 프로젝트는 PM을 중심으로 기술 아키텍트, 개발·구현팀, QA팀, 현장 지원 인력으로 구성된 전담 조직이 수행합니다. 고객사와는 주 1회 정기 협의체를 운영하여 진행 상황을 공유하고 의사결정 지연을 최소화합니다.'),
       twoColTable([
         ['프로젝트 PM',   '전체 일정·품질·리스크 총괄, 고객사 협의체 운영'],
         ['기술 아키텍트', `${CATEGORY_LABEL[data.category]} 아키텍처 설계 및 기술 의사결정`],
@@ -793,6 +886,7 @@ function buildManagement(data: ProposalFormData, heading: string, subEnabled: Re
   if (subEnabled.QUALITY) {
     blocks.push(
       subHeading('6.2 품질 보증'),
+      bodyPara('품질은 사후 검증이 아닌 단계별 내재화 방식으로 관리합니다. 각 마일스톤 산출물은 고객 검토와 승인을 거쳐야 다음 단계로 진행되며, 이슈는 발생 즉시 에스컬레이션 체계를 통해 처리합니다.'),
       checkItem('단계별 마일스톤 산출물 고객 검토 및 승인 절차 운영'),
       checkItem('주간 진도 보고 및 이슈 에스컬레이션 체계'),
       checkItem('ISO 9001 기반 품질 관리 프로세스 적용'),
@@ -803,11 +897,38 @@ function buildManagement(data: ProposalFormData, heading: string, subEnabled: Re
   if (subEnabled.RISK) {
     blocks.push(
       subHeading('6.3 리스크 관리'),
+      bodyPara('프로젝트 진행 중 발생 가능한 주요 리스크를 사전에 식별하고, 각각에 대한 발생 가능성·영향도·대응 방안을 아래와 같이 마련해두었습니다.'),
+      ...spacer(1),
+      subHeading('리스크 ① 요구사항 변경'),
+      bodyPara('프로젝트 진행 중 고객사 내부 사정이나 시장 변화로 인해 초기 합의된 요구사항이 변경될 수 있습니다.'),
       twoColTable([
-        ['리스크 ①', '요구사항 변경 → 변경관리 절차(CCB) 운영, 영향도 분석 후 일정 조정'],
-        ['리스크 ②', '핵심 인력 이탈 → 백업 인력 사전 확보, 지식 이전 문서화 의무화'],
-        ['리스크 ③', '데이터 품질 이슈 → 착수 시 데이터 진단, 사전 정제 기간 확보'],
-        ['리스크 ④', '일정 지연 → 크리티컬 패스 집중 관리, 2주 버퍼 일정 내장'],
+        ['발생 가능성', '중간'],
+        ['영향도',     '일정 지연 및 재작업 발생 가능'],
+        ['대응 방안',   '변경관리 절차(CCB)를 운영하여 영향도 분석 후 일정과 비용에 반영, 임의 변경 방지'],
+      ]),
+      ...spacer(1),
+      subHeading('리스크 ② 핵심 인력 이탈'),
+      bodyPara('장기 프로젝트 특성상 핵심 개발·기획 인력의 이탈이 발생할 경우 지식 공백이 생길 수 있습니다.'),
+      twoColTable([
+        ['발생 가능성', '낮음'],
+        ['영향도',     '일정 지연 및 품질 저하 우려'],
+        ['대응 방안',   '백업 인력 사전 확보 및 지식 이전 문서화를 의무화하여 인력 교체 시에도 연속성 유지'],
+      ]),
+      ...spacer(1),
+      subHeading('리스크 ③ 데이터 품질 이슈'),
+      bodyPara('보유 데이터의 결측치, 중복, 형식 불일치 등으로 인해 개발·연동 과정에서 예상보다 많은 정제 작업이 필요할 수 있습니다.'),
+      twoColTable([
+        ['발생 가능성', '중간'],
+        ['영향도',     '개발 일정 지연 및 목표 성능 미달 우려'],
+        ['대응 방안',   '프로젝트 착수 시점에 데이터 진단을 선행하고, 사전 정제 기간을 일정에 확보'],
+      ]),
+      ...spacer(1),
+      subHeading('리스크 ④ 일정 지연'),
+      bodyPara('외부 연동 시스템의 협조 지연이나 예상치 못한 기술적 이슈로 전체 일정이 지연될 수 있습니다.'),
+      twoColTable([
+        ['발생 가능성', '낮음'],
+        ['영향도',     'Go-Live 일정 지연'],
+        ['대응 방안',   '크리티컬 패스를 집중 관리하고, 전체 일정에 2주의 버퍼를 사전에 내장'],
       ]),
     )
   }
