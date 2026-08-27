@@ -23,12 +23,6 @@ export default function Topbar({ crumbs, showReset, onReset }: Props) {
 
       {/* 우측 유틸리티 */}
       <div className="flex items-center gap-3 shrink-0">
-        <div className="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-[4px] border border-line bg-surface text-ink-400 text-xs w-52">
-          <svg className="w-3.5 h-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-4.35-4.35M17 11a6 6 0 11-12 0 6 6 0 0112 0z" />
-          </svg>
-          검색
-        </div>
         {showReset && (
           <button
             onClick={onReset}
@@ -40,9 +34,6 @@ export default function Topbar({ crumbs, showReset, onReset }: Props) {
             처음으로
           </button>
         )}
-        <div className="w-7 h-7 rounded-full bg-brand-100 text-brand-700 flex items-center justify-center text-[11px] font-bold">
-          U
-        </div>
       </div>
     </header>
   )

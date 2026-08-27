@@ -6,7 +6,6 @@ import EstimateSection from '@/components/EstimateSection'
 import ScopeSection from '@/components/ScopeSection'
 import CompanyProfileSection from '@/components/CompanyProfileSection'
 import StructureSection from '@/components/StructureSection'
-import LivePreview from '@/components/LivePreview'
 import { defaultEstimate } from '@/lib/estimate'
 import { defaultScope } from '@/lib/scope'
 import { defaultCompanyProfile } from '@/lib/companyProfile'
@@ -160,17 +159,8 @@ export default function ProposalForm({ category, onSubmit, onBack, errorMsg }: P
     onSubmit(payload)
   }
 
-  // 실시간 미리보기용 초안 데이터 — 유효성 검증 없이 현재 입력 상태를 그대로 반영
-  const draftData: ProposalFormData =
-    category === 'AI'
-      ? { ...base, ...ai, estimate, scope, companyProfile, structure, category: 'AI' }
-      : category === 'CLOUD'
-      ? { ...base, ...cloud, estimate, scope, companyProfile, structure, category: 'CLOUD' }
-      : { ...base, ...erp, estimate, scope, companyProfile, structure, category: 'ERP' };
-
   return (
-    <div className="max-w-[1400px] mx-auto grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_400px] gap-6 items-start">
-    <div>
+    <div className="max-w-3xl mx-auto">
       {/* 타이틀 */}
       <div className="mb-5 flex items-center gap-3">
         <button onClick={onBack} className="text-ink-400 hover:text-ink-700 transition-colors p-1.5 -ml-1.5 rounded-[4px] hover:bg-surface-sunken">
@@ -468,12 +458,6 @@ export default function ProposalForm({ category, onSubmit, onBack, errorMsg }: P
           </button>
         </div>
       </form>
-    </div>
-
-    {/* 실시간 미리보기 */}
-    <div className="hidden lg:block sticky top-[88px]">
-      <LivePreview data={draftData} />
-    </div>
     </div>
   )
 }
