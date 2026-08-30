@@ -1,76 +1,88 @@
 # APP (Automatic Project Proposal)
 
-> AI · 클라우드 · ERP 솔루션 제안서를 자동으로 생성하는 도구.
-> 회사명·업종·요구사항을 입력하면 표지부터 견적까지 갖춘 Word(.docx) 제안서가 완성됩니다.
+> 제안요청서(RFP) PDF를 올리면 요구사항과 평가 기준을 분석해 제안 발표자료(.pptx)를 만들어 주는 도구.
+> 사업에 관한 내용은 전부 RFP에서 나오고, 사용자가 입력하는 것은 제안사(우리 회사) 정보뿐입니다.
 
 ## 전체 사용 흐름
 
 ```
 홈 화면
-  └▶ 시작하기 버튼
-      └▶ 모듈 선택 (AI · 클라우드 · ERP)
-          └▶ 정보 입력 (우측에 실시간 미리보기 동반)
-              └▶ 제안서 생성 중 (진행률 표시)
-                  └▶ Word 파일 자동 다운로드
+  └▶ 시작하기
+      └▶ RFP 업로드 (PDF)
+          └▶ RFP 분석 결과 확인 · 반영할 요구사항 선택
+              └▶ 제안사 정보 입력 (회사명 · 소개 · 실적)
+                  └▶ 생성 중
+                      └▶ PPTX 파일 자동 다운로드
 ```
 
-각 단계는 `src/app/page.tsx`가 `step` 상태(`home` → `select` → `form` → `loading` → `done`)로 관리하며, 화면 전환마다 대응하는 컴포넌트가 렌더링됩니다.
+`src/app/page.tsx`가 `step` 상태(`home` → `upload` → `analysis` → `form` → `loading` → `done`)로 화면 전환을 관리합니다. 제안서는 항상 특정 RFP에 대한 응답이므로, 분석 결과 없이는 `form` 단계에 진입할 수 없습니다.
 
 ## 핵심 기능
 
-### 1. 홈 화면
-`HomeHero.tsx`가 담당합니다. 화면 정중앙에 그라데이션 로고(`Logo.tsx`)를 배치하고, 그 아래 "시작하기" 버튼으로 모듈 선택 화면으로 이동합니다. 배경에는 `GlitterWrap.tsx`(캔버스 기반 파티클 애니메이션)를 깔아 첫인상을 살렸습니다.
+### 1. RFP PDF 텍스트 추출 (`lib/rfp/extractText.ts`)
 
-### 2. 모듈 선택
-`CategorySelector.tsx`에서 AI 솔루션 · 클라우드 전환 · ERP 구축 3가지 유형 중 하나를 카드 형태로 고릅니다. 선택한 유형에 따라 이후 입력 폼의 필드 구성이 완전히 달라집니다.
+`pdfjs-dist`로 **브라우저 안에서** PDF를 파싱합니다. 파일이 서버로 전송되지 않는 것이 이 설계의 의도입니다.
 
-### 3. 정보 입력 폼 + 실시간 미리보기
-`ProposalForm.tsx`가 좌측 폼 / 우측 미리보기(`LivePreview.tsx`)의 2단 레이아웃을 구성합니다. 폼은 아래 6개 섹션으로 이루어져 있고, 타이핑하는 즉시 우측 패널에 반영되어 어떤 항목이 비어 있는지 한눈에 확인할 수 있습니다.
+PDF에는 "줄"이나 "문장"이라는 개념이 없고 좌표가 찍힌 텍스트 조각만 있으므로, Y좌표가 비슷한 조각들을 묶고 X좌표 순으로 이어 붙여 줄 단위로 재구성합니다. 각 줄은 페이지 번호를 함께 보관하며, 이 번호가 나중에 제안서의 "근거 페이지"가 됩니다.
 
-| # | 섹션 | 컴포넌트 | 설명 |
-|---|------|----------|------|
-| 1 | 기본 정보 | (ProposalForm 내부) | 제안서 제목, 제안사/고객사명, 업종, 예산, 기간, 경영진 요약용 한 줄 요약 |
-| 2 | 카테고리별 상세 정보 | (ProposalForm 내부) | AI/클라우드/ERP마다 다른 전용 필드. AI는 업종(금융·제조·유통·의료) 선택 시 표준 Pain Point·KPI·컴플라이언스가 자동 채워짐(`lib/industryPresets.ts`) |
-| 3 | 범위 정의 (In/Out Scope) | `ScopeSection.tsx` | 포함 범위·제외 범위를 나란히 입력해 스코프 크리프를 방지. 전제 조건·의존성도 함께 기록 |
-| 4 | 항목별 견적 | `EstimateSection.tsx` | 인력 투입(M/M) × 단가로 인건비 자동 계산, SW/HW/클라우드 비용 항목 추가, 할인율·부가세를 반영한 합계까지 실시간 산출 |
-| 5 | 회사 소개 및 수행 실적 | `CompanyProfileSection.tsx` | 회사 소개 문단, 핵심 역량, 수행 실적(고객사/연도/개요)을 입력. 비워두면 문서에서 자연스럽게 생략됨 |
-| 6 | 문서 구성 | `StructureSection.tsx` | 아래 "문서 구성 커스터마이징" 참고 |
+### 2. RFP 분석 (`lib/rfp/analyze.ts`)
 
-### 4. 문서 구성 커스터마이징
-`StructureSection.tsx` + `lib/sections.ts`가 담당합니다.
+LLM 없이 규칙 기반으로 동작하는 순수 함수입니다. 완벽하지 않으며, 사용자가 화면에서 눈으로 확인하고 취사선택하는 것을 전제로 한 **초안 추출**입니다.
 
-- **드래그 앤 드롭 순서 변경**: `@dnd-kit`으로 섹션 카드를 끌어서 원하는 순서로 재배치할 수 있습니다. Word 문서의 로마 숫자(I, II, III...)는 실제 배치 순서를 기준으로 매 생성마다 자동으로 다시 매깁니다.
-- **섹션 on/off**: 경영진 요약, 범위 정의, 비용 제안은 프로젝트 보호에 필수적이라 끌 수 없도록 잠가두었고(`locked: true`), 나머지 섹션은 자유롭게 켜고 끌 수 있습니다. "사업 관리 방안" 섹션은 조직/품질/리스크 하위 항목까지 개별로 켜고 끌 수 있습니다.
-- **간략/상세 프리셋**: 버튼 한 번으로 "간략 버전(약 20p, 핵심만)" 또는 "상세 버전(전체 포함)" 구성으로 즉시 전환됩니다.
+- **제목 상태 기계**: `3. 요구사항 정의` / `4. 제안서 평가 기준` 같은 번호 매겨진 제목을 만나면 이후 목록의 해석 문맥이 바뀌고, 새로운 대제목(`5. 기타 사항`)에서 문맥을 벗어납니다.
+- **요구사항**: 요구사항 문맥 안의 목록 항목이거나, 문맥과 무관하게 `~해야 한다 / 하여야 함 / 되어야 하며` 같은 의무 표현을 가진 문장. 중복 텍스트는 제거합니다. 소제목에서 기능 / 비기능을 판정합니다.
+- **평가 기준**: 목록 항목뿐 아니라 `4.2 가격 평가: 20점`처럼 **소제목 자체가 배점을 갖는 경우**까지 수집합니다.
+- **사업 개요**: `사업명 : ...` 처럼 `항목: 값` 형태로 적힌 줄에서 사업명·발주기관·예산·기간·제출기한을 찾습니다. 먼저 나온 값을 우선합니다(RFP는 앞부분에 요약 정보를 두는 것이 관례).
 
-### 5. Word 문서 생성
-제출 시 `app/api/generate/route.ts`가 폼 데이터를 받아 `lib/generateDocx.ts`의 `generateProposalDocx()`를 호출하고, 완성된 `.docx` 파일을 브라우저로 스트리밍해 자동 다운로드시킵니다(`DownloadScreen.tsx`). 생성 중에는 `LoadingScreen.tsx`가 단계별 진행 상태를 보여줍니다.
+### 3. 분석 결과 확인 (`components/RfpAnalysis.tsx`)
 
-## 생성되는 Word 문서 구조
+추출된 사업 개요 / 요구사항 / 평가 기준을 페이지 번호와 함께 보여줍니다. 요구사항은 기본적으로 전부 선택돼 있고, 오탐을 체크 해제하면 제안서에서 빠집니다. 규칙 기반이라 누락·오탐이 있을 수 있으므로 화면에서 원문과 대조하도록 안내합니다.
 
-표지(1p 고정) 뒤에 아래 12개 섹션이 `문서 구성`에서 정한 순서·포함 여부대로 배치됩니다. 각 섹션은 카테고리(AI/클라우드/ERP)에 맞춰 서로 다른 내용으로 채워집니다.
+### 4. 제안사 정보 입력 (`components/ProposerForm.tsx`)
 
-| 섹션 | 내용 |
+사용자가 입력하는 **유일한** 영역입니다.
+
+| 항목 | 필수 | 반영되는 곳 |
+|------|:---:|------|
+| 제안사 (우리 회사) | ● | 표지, 마무리 슬라이드 |
+| 작성자 · 작성일 | | 표지 |
+| 회사 소개 | | 제안사 소개 슬라이드 |
+| 핵심 역량 | | 제안사 소개 슬라이드 |
+| 주요 수행 실적 | | 수행 실적 슬라이드 (비우면 슬라이드 자체가 생략됨) |
+
+화면 상단에는 "RFP에서 자동 반영된 내용"이 읽기 전용으로 표시되어, 입력하지 않아도 제안서에 들어가는 항목을 확인할 수 있습니다.
+
+### 5. PPTX 생성 (`lib/generatePptx.ts`)
+
+`app/api/generate/route.ts`가 서버에서 `generateProposalPptx()`를 호출해 `.pptx`를 스트리밍합니다. PowerPoint가 시스템에 설치된 한글 폰트를 사용하므로 폰트 파일을 임베드하지 않습니다.
+
+## 생성되는 발표자료 구조
+
+16:9 비율로 아래 슬라이드가 만들어집니다. 내용이 없는 슬라이드(수행 실적, 평가 기준)는 자동으로 생략됩니다.
+
+| 슬라이드 | 내용 |
 |------|------|
-| 경영진 요약 (필수) | Executive Summary, 수신처/제안사/예산/기간 요약표 |
-| 현황 분석 | 핵심 Pain Point 3가지를 현상 → 원인 → 영향 구조로 서술 |
-| 솔루션 제안 | 기능별 무엇을/왜/어떻게 서술, 아키텍처, 기술 선정 근거 |
-| 기대 효과 | 도입 전/후 비교표(정량), 정성적 효과 서술 |
-| 범위 정의 (필수) | In Scope / Out of Scope 비교표, 전제 조건, 의존성 |
-| 추진 일정 | 마일스톤 표 + Phase별 상세 설명 |
-| 단계별 산출물 명세 | Phase별 산출물을 문서·코드·디자인·운영가이드·교육으로 구분 |
-| 사업 관리 방안 | 수행 조직, 품질 보증, 리스크(발생가능성·영향도·대응방안) |
-| 유지보수 및 지원 | SLA, 장애 대응 체계 |
-| 비용 제안 (필수) | 인력 투입 내역, SW/HW/클라우드 비용, 할인·부가세 반영 최종 합계 |
-| 회사 소개 및 수행 실적 | 회사 소개, 핵심 역량, 수행 실적 표 |
-| 당사를 선택해야 하는 이유 | 차별화 포인트 |
+| 표지 | 사업명, 발주기관, 제안사, 작성자·작성일 |
+| 목차 | 실제로 생성되는 장만 나열 |
+| 사업 개요 | RFP에서 찾은 사업명·발주기관·예산·기간. 없으면 "제안요청서 미명시" |
+| 요구사항 구성 | 기능 / 비기능 / 기타 건수를 카드로 표시 |
+| **요구사항 대응 방안** | ID · 구분 · RFP 원문 · 대응 방안 · 근거 페이지 표. **한 장에 5행씩 자동 분할** |
+| 평가 기준별 대응 | 배점 내림차순 정렬, 배점 합계 표시 |
+| 추진 일정 | 4단계 마일스톤 |
+| 제안사 소개 | 회사 소개 + 핵심 역량 |
+| 주요 수행 실적 | 고객사 · 연도 · 성과 표 (최대 6건) |
+| 마무리 | 감사합니다 + 제안사명 |
+
+### ⚠️ 요구사항 "대응 방안"은 표준 문구입니다
+
+사용자가 대응 방안을 직접 입력하지 않는 구조이므로, 요구사항 **유형별로 정해진 3가지 문구**(기능 / 비기능 / 기타) 중 하나가 들어갑니다(`STANDARD_RESPONSE`). 실제 제안서로 제출하려면 PowerPoint에서 각 요구사항에 맞게 보완해야 합니다.
 
 ## 기술 스택
 
 - **Frontend/Backend**: Next.js 14 (App Router), TypeScript, React
 - **스타일링**: Tailwind CSS (ServiceNow Now Platform 스타일의 엔터프라이즈 UI)
-- **드래그 앤 드롭**: `@dnd-kit/core`, `@dnd-kit/sortable`
-- **Word 문서 생성**: `docx` (docx.js)
+- **PDF 파싱**: `pdfjs-dist` (브라우저에서 실행)
+- **PPTX 생성**: `pptxgenjs` (서버에서 실행)
 - **배포**: Vercel
 
 ## 프로젝트 구조
@@ -78,31 +90,29 @@
 ```
 src/
 ├── app/
-│   ├── api/generate/route.ts   # 폼 데이터 → docx 변환 API
+│   ├── api/generate/route.ts     # 제안서 데이터 → pptx 변환 API
 │   ├── layout.tsx
-│   └── page.tsx                 # 화면 단계(step) 상태 관리
+│   └── page.tsx                   # 화면 단계(step) 상태 관리
 ├── components/
-│   ├── HomeHero.tsx              # 홈 화면
-│   ├── Logo.tsx / GlitterWrap.tsx  # 홈 화면 로고 · 배경 애니메이션
-│   ├── CategorySelector.tsx      # 모듈(AI/클라우드/ERP) 선택
-│   ├── ProposalForm.tsx          # 입력 폼 전체(레이아웃 + 상태 관리)
-│   ├── EstimateSection.tsx       # 항목별 견적 입력
-│   ├── ScopeSection.tsx          # 범위 정의 입력
-│   ├── CompanyProfileSection.tsx # 회사 소개 및 수행 실적 입력
-│   ├── StructureSection.tsx      # 문서 구성 드래그 앤 드롭
-│   ├── LivePreview.tsx           # 실시간 미리보기 패널
-│   ├── LoadingScreen.tsx         # 생성 중 진행률 화면
-│   ├── DownloadScreen.tsx        # 다운로드 완료 화면
-│   └── Sidebar.tsx / Topbar.tsx  # 앱 셸(모듈 선택 이후 공통 레이아웃)
+│   ├── HomeHero.tsx                # 홈 화면
+│   ├── Logo.tsx / GlitterWrap.tsx  # 로고 · 배경 파티클 애니메이션
+│   ├── RfpUploader.tsx             # PDF 드래그앤드롭 업로드
+│   ├── RfpAnalysis.tsx             # 분석 결과 표시 · 요구사항 선택
+│   ├── ProposerForm.tsx            # 제안사 정보 입력
+│   ├── CompanyProfileSection.tsx   # 회사 소개 · 핵심 역량 · 수행 실적 입력
+│   ├── LoadingScreen.tsx           # 생성 중 진행률 화면
+│   ├── DownloadScreen.tsx          # 다운로드 완료 화면
+│   └── Sidebar.tsx / Topbar.tsx    # 앱 셸 (진행 단계 표시)
 ├── lib/
-│   ├── generateDocx.ts           # Word 문서 생성 핵심 로직
-│   ├── sections.ts               # 문서 구성 기본값 · 간략/상세 프리셋
-│   ├── estimate.ts               # 견적 계산 로직
-│   ├── scope.ts                  # 범위 정의 기본값
-│   ├── companyProfile.ts         # 회사 소개 기본값
-│   └── industryPresets.ts        # AI 업종별 자동 채움 프리셋
+│   ├── generatePptx.ts             # 발표자료 생성 핵심 로직
+│   ├── rfp/
+│   │   ├── extractText.ts          # PDF → 줄 단위 텍스트 (페이지 번호 포함)
+│   │   ├── analyze.ts              # 줄 → 요구사항 · 평가기준 · 사업개요
+│   │   └── prefill.ts              # 분석 결과 → 제안서 데이터 모델
+│   ├── companyProfile.ts           # 제안사 정보 기본값
+│   └── id.ts                       # 목록 항목용 ID 생성
 └── types/
-    └── proposal.ts                # 전체 데이터 모델 정의
+    └── proposal.ts                  # 전체 데이터 모델 정의
 ```
 
 ## 로컬 실행
@@ -123,22 +133,27 @@ vercel --prod
 
 ## 개발 시 참고 사항
 
-`lib/generateDocx.ts`를 수정할 때는 아래 두 규칙을 반드시 지켜야 문서가 깨지지 않습니다.
+### pdf.worker.min.mjs 버전 동기화
 
-1. **폰트 크기와 여백 단위를 구분할 것**: 글자 크기(`TextRun.size`)는 `halfPt()`를, 문단 간격·들여쓰기·테두리(`spacing`/`indent`/`border`)는 `pt()` 또는 `twip()`을 씁니다. 이 둘을 섞으면 폰트가 실제 의도보다 10배 커지는 문제가 발생합니다.
-2. **모든 표의 `columnWidths`는 `scaleWidths([...])`를 통과시킬 것**: 열 너비를 직접 숫자로 넣으면 표가 실제 인쇄 가능 너비를 넘어서 오른쪽 여백을 침범합니다.
+`pdfjs-dist`는 파싱을 별도 Worker 스크립트로 실행하며, `public/pdf.worker.min.mjs`는 `node_modules/pdfjs-dist/build/pdf.worker.min.mjs`를 그대로 복사해 커밋해 둔 파일입니다.
 
-### RFP PDF 업로드 기능 (`src/lib/rfp/`)
-
-`src/lib/rfp/extractText.ts`는 브라우저에서 `pdfjs-dist`로 PDF 텍스트를 추출합니다. pdfjs는 파싱을 별도 Worker 스크립트(`public/pdf.worker.min.mjs`)로 실행하는데, 이 파일은 `node_modules/pdfjs-dist/build/pdf.worker.min.mjs`를 그대로 복사해 커밋해 둔 것입니다.
-
-**⚠️ `pdfjs-dist`를 업그레이드하면 `public/pdf.worker.min.mjs`를 반드시 수동으로 재복사해야 합니다.** 버전이 어긋나면(`API version X, Worker version Y`) 브라우저 콘솔에 에러가 나며 PDF 파싱이 실패합니다.
+**⚠️ `pdfjs-dist`를 업그레이드하면 이 파일을 반드시 수동으로 재복사해야 합니다.** 버전이 어긋나면(`API version X, Worker version Y`) 브라우저 콘솔에 에러가 나며 PDF 파싱이 실패합니다.
 
 ```bash
 npm install pdfjs-dist@latest
 cp node_modules/pdfjs-dist/build/pdf.worker.min.mjs public/pdf.worker.min.mjs
 ```
 
+### 스캔 PDF는 지원하지 않습니다
+
+OCR을 쓰지 않으므로 이미지로만 이루어진 PDF에서는 텍스트를 추출할 수 없습니다. 업로드 화면에 안내가 표시됩니다.
+
+### PPTX 레이아웃 수정 시
+
+`lib/generatePptx.ts`의 좌표 단위는 **인치**입니다(16:9 = 10 × 5.625). `MARGIN`과 `BODY_W` 상수를 기준으로 배치하면 좌우 여백이 맞습니다. 표의 `colW` 합계는 `BODY_W`를 넘지 않아야 하며, 넘으면 슬라이드 밖으로 밀려납니다.
+
+요구사항이 많을 때 한 슬라이드에 다 들어가지 않으므로 `ROWS_PER_SLIDE`(기본 5)로 나눠 담습니다. 표 행 높이를 키우면 이 값도 함께 줄여야 합니다.
+
 ---
 
-Made with Next.js + docx.js
+Made with Next.js + pptxgenjs
