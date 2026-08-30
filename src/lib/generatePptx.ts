@@ -32,23 +32,50 @@ function kindColors(pal: BrandPalette): Record<RequirementKind, string> {
   return { 기능: pal.brand, 비기능: pal.gray, 기타: 'A8A8A8' }
 }
 
+/**
+ * 문서의 뼈대. Win Theme은 "무엇이 중요한가"를 선언하는 문장이므로,
+ * 나머지 장은 그 선언을 세우고(문제) · 밝히고(기준) · 증명하고(근거) ·
+ * 지킬 수 있음을 보이는(실행) 네 단계로 배치된다.
+ *
+ * 각 장의 eyebrow에 이 역할이 찍히고, lead 문장이 축과 그 장을 잇는다.
+ */
+const STEP = {
+  문제: '문제 정의',
+  기준: '판단 기준',
+  근거: '충족 근거',
+  실행: '실행 역량',
+} as const
+
+/** Win Theme이 없을 때는 축에 기대는 문장을 만들지 않는다. */
+function lead(angle: string | undefined, withAngle: (a: string) => string): string | undefined {
+  return angle ? withAngle(angle) : undefined
+}
+
+/** 이 요구사항이 Win Theme의 근거로 인용된 것인가 */
+function isThemeProof(data: ProposalFormData, text: string): boolean {
+  return (data.winTheme?.evidence ?? []).some((e) => e.text === text)
+}
+
 type Pptx = import('pptxgenjs').default
 type Slide = ReturnType<Pptx['addSlide']>
 
 // ── 공통 레이아웃 ────────────────────────────────────────────────────────────
 
 /**
- * 모든 본문 슬라이드에 공통으로 들어가는 제목 + 상단 규칙선.
- * angle을 넘기면 하단에 러닝 배너로 전략 축을 반복 노출한다 — 심사위원이 어느
- * 장을 펼치든 이 제안의 축이 무엇인지 다시 읽게 하는 장치다.
+ * 본문 슬라이드의 공통 머리. eyebrow는 이 장이 논지에서 맡은 역할을 적고,
+ * lead는 그 역할을 Win Theme에 비추어 한 문장으로 잇는다.
+ *
+ * Win Theme 문장 자체를 반복하지 않는다. 반복은 설득이 아니라 소음이다.
+ * 대신 각 장이 그 주장의 어느 단계인지를 밝혀 문서를 하나의 논지로 묶는다.
+ *
+ * 본문 시작 y좌표를 함께 돌려주므로, 리드 유무에 따라 호출부가 위치를 맞춘다.
  */
 function contentSlide(
   pptx: Pptx,
   pal: BrandPalette,
-  title: string,
-  eyebrow?: string,
-  angle?: string
-): Slide {
+  opts: { title: string; eyebrow?: string; lead?: string }
+): { slide: Slide; top: number } {
+  const { title, eyebrow, lead } = opts
   const slide = pptx.addSlide()
   slide.background = { color: pal.white }
 
@@ -62,23 +89,16 @@ function contentSlide(
     x: MARGIN, y: eyebrow ? 0.5 : 0.38, w: BODY_W, h: 0.45,
     fontFace: FONT, fontSize: 22, color: pal.brandDeep, bold: true,
   })
-  slide.addShape('rect', {
-    x: MARGIN, y: eyebrow ? 1.0 : 0.88, w: BODY_W, h: 0.025,
-    fill: { color: pal.brand },
+  const ruleY = eyebrow ? 1.0 : 0.88
+  slide.addShape('rect', { x: MARGIN, y: ruleY, w: BODY_W, h: 0.025, fill: { color: pal.brand } })
+
+  if (!lead) return { slide, top: ruleY + 0.35 }
+
+  slide.addText(lead, {
+    x: MARGIN, y: ruleY + 0.18, w: BODY_W, h: 0.32,
+    fontFace: FONT, fontSize: 11, color: pal.gray, italic: true,
   })
-
-  if (angle) {
-    slide.addShape('rect', {
-      x: MARGIN, y: H - 0.42, w: 0.04, h: 0.16,
-      fill: { color: pal.brand },
-    })
-    slide.addText(angle, {
-      x: MARGIN + 0.14, y: H - 0.45, w: BODY_W - 0.14, h: 0.22,
-      fontFace: FONT, fontSize: 9, color: pal.gray,
-    })
-  }
-
-  return slide
+  return { slide, top: ruleY + 0.62 }
 }
 
 function tableHeader(pal: BrandPalette, labels: string[]) {
@@ -114,7 +134,7 @@ function addCover(pptx: Pptx, pal: BrandPalette, data: ProposalFormData) {
   })
   slide.addShape('rect', { x: MARGIN, y: 3.05, w: 1.6, h: 0.04, fill: { color: pal.brandMid } })
 
-  // 표지에서부터 축을 선언한다. 표지·목차·본문 러닝 배너가 같은 말을 반복하게 된다.
+  // 표지는 주장을 처음 꺼내는 자리다. 이후 장들은 이 문장을 되풀이하지 않고 증명한다.
   const headline = data.winTheme?.headline.trim()
   if (headline) {
     slide.addText(headline, {
@@ -136,65 +156,87 @@ function addCover(pptx: Pptx, pal: BrandPalette, data: ProposalFormData) {
   })
 }
 
-function addAgenda(pptx: Pptx, pal: BrandPalette, data: ProposalFormData, sections: string[]) {
-  const angle = data.winTheme?.angle
-  const slide = contentSlide(pptx, pal, '목차', 'AGENDA', angle)
+// 목차는 장 이름을 나열하지 않고, 각 장이 논지의 어느 단계인지를 보여준다.
+function addAgenda(
+  pptx: Pptx,
+  pal: BrandPalette,
+  data: ProposalFormData,
+  sections: { label: string; step: string }[]
+) {
+  const { slide, top } = contentSlide(pptx, pal, {
+    title: '목차',
+    eyebrow: 'AGENDA',
+    lead: lead(data.winTheme?.angle, (a) => `'${a}'을 세우는 순서로 구성했습니다.`),
+  })
 
-  // 목차 첫 줄에서 문서 전체의 축을 먼저 선언한다.
-  const top = angle ? 1.55 : 1.35
-  if (angle) {
-    slide.addText(`본 제안서는 '${angle}'을 축으로 구성했습니다.`, {
-      x: MARGIN + 0.15, y: 1.2, w: BODY_W - 0.3, h: 0.3,
-      fontFace: FONT, fontSize: 12, bold: true, color: pal.brand,
+  let y = top
+  let lastStep = ''
+  sections.forEach((section, i) => {
+    if (section.step !== lastStep) {
+      slide.addText(section.step, {
+        x: MARGIN, y, w: 1.5, h: 0.26,
+        fontFace: FONT, fontSize: 10, bold: true, color: pal.brand,
+      })
+      lastStep = section.step
+    }
+    slide.addText(`${String(i + 1).padStart(2, '0')}   ${section.label}`, {
+      x: MARGIN + 1.6, y: y - 0.02, w: BODY_W - 1.6, h: 0.3,
+      fontFace: FONT, fontSize: 13, color: pal.ink,
     })
-  }
-
-  slide.addText(
-    sections.map((s, i) => ({
-      text: `${String(i + 1).padStart(2, '0')}   ${s}`,
-      options: { breakLine: true, fontSize: 14, color: pal.ink, bold: false },
-    })),
-    { x: MARGIN + 0.15, y: top, w: BODY_W - 0.3, h: 3.4, fontFace: FONT, lineSpacingMultiple: 1.9 }
-  )
+    y += 0.42
+  })
 }
 
-// 제안 핵심 메시지 — 목차 바로 뒤에 두어 심사위원이 가장 먼저 읽게 한다.
+/**
+ * 논지 전개. Win Theme 한 문장을 문제 → 기준 → 근거 → 결과로 펼쳐,
+ * 이후 모든 장이 어느 칸을 채우러 오는지 미리 밝힌다.
+ */
 function addWinTheme(pptx: Pptx, pal: BrandPalette, data: ProposalFormData) {
   const theme = data.winTheme
   if (!theme || !theme.headline.trim()) return
 
-  const slide = contentSlide(pptx, pal, '제안 핵심 메시지', 'WIN THEME', theme.angle)
+  const { slide } = contentSlide(pptx, pal, { title: '제안 논지', eyebrow: `WIN THEME · ${theme.angle}` })
 
-  slide.addShape('rect', { x: MARGIN, y: 1.35, w: 0.05, h: 1.4, fill: { color: pal.brand } })
+  // 주장
+  slide.addShape('rect', { x: MARGIN, y: 1.3, w: 0.05, h: 1.15, fill: { color: pal.brand } })
   slide.addText(theme.headline, {
-    x: MARGIN + 0.3, y: 1.35, w: BODY_W - 0.3, h: 1.4,
-    fontFace: FONT, fontSize: 20, bold: true, color: pal.brandDeep,
-    lineSpacingMultiple: 1.35, valign: 'top',
+    x: MARGIN + 0.28, y: 1.3, w: BODY_W - 0.28, h: 1.15,
+    fontFace: FONT, fontSize: 17, bold: true, color: pal.brandDeep,
+    lineSpacingMultiple: 1.3, valign: 'top',
   })
 
-  // 이 방향이 어디서 나왔는지 — 전부 고객이 제안요청서에 직접 쓴 문장이다.
-  const evidence = theme.evidence.slice(0, 4)
-  if (evidence.length > 0) {
-    slide.addText('제안요청서 근거', {
-      x: MARGIN + 0.3, y: 2.95, w: BODY_W - 0.3, h: 0.25,
-      fontFace: FONT, fontSize: 10, bold: true, color: pal.brand,
+  // 이 주장을 어떤 순서로 증명하는지 — 뒤따르는 장들의 지도
+  const background = theme.evidence.find((e) => e.kind === '배경')
+  const proof = theme.evidence.filter((e) => e.kind !== '배경').slice(0, 3)
+
+  const steps: [string, string][] = [
+    [STEP.문제, background ? background.text : `${data.rfp.client || '발주기관'}이 제안요청서에 밝힌 현황`],
+    [STEP.기준, `그래서 '${theme.angle}'이 이 사업의 성패를 가릅니다.`],
+    [STEP.근거, proof.length > 0 ? proof.map((p) => p.text).join(' / ') : '제안요청서 요구사항 전건 대응'],
+    [STEP.실행, `${data.companyName}의 수행 역량과 일정으로 이를 지킵니다.`],
+  ]
+
+  const colW = (BODY_W - 0.45) / 4
+  steps.forEach(([label, text], i) => {
+    const x = MARGIN + i * (colW + 0.15)
+    slide.addShape('rect', { x, y: 2.75, w: colW, h: 0.03, fill: { color: i === 1 ? pal.brand : pal.line } })
+    slide.addText(label, {
+      x, y: 2.85, w: colW, h: 0.25,
+      fontFace: FONT, fontSize: 10, bold: true, color: i === 1 ? pal.brand : pal.gray,
     })
-    slide.addText(
-      evidence.map((e) => ({
-        text: `${e.text}${e.page > 0 ? ` (${e.page}p)` : ''}`,
-        options: { breakLine: true, bullet: { code: '25AA' } },
-      })),
-      {
-        x: MARGIN + 0.4, y: 3.25, w: BODY_W - 0.4, h: 1.5,
-        fontFace: FONT, fontSize: 10, color: pal.gray, lineSpacingMultiple: 1.4,
-      }
-    )
-  }
+    slide.addText(text, {
+      x, y: 3.14, w: colW, h: 1.55,
+      fontFace: FONT, fontSize: 9, color: pal.ink, lineSpacingMultiple: 1.3, valign: 'top',
+    })
+  })
 }
 
 function addOverview(pptx: Pptx, pal: BrandPalette, data: ProposalFormData) {
   const angle = data.winTheme?.angle
-  const slide = contentSlide(pptx, pal, '사업 개요', '01  OVERVIEW', angle)
+  const { slide, top } = contentSlide(pptx, pal, {
+    title: '사업 개요', eyebrow: `01 · ${STEP.문제}`,
+    lead: lead(angle, (a) => `제안요청서가 밝힌 조건입니다. 이 가운데 '${a}'이 성패를 가릅니다.`),
+  })
   const { rfp } = data
 
   const rows = [
@@ -210,7 +252,7 @@ function addOverview(pptx: Pptx, pal: BrandPalette, data: ProposalFormData) {
   ])
 
   slide.addTable(rows, {
-    x: MARGIN, y: 1.35, w: BODY_W,
+    x: MARGIN, y: top, w: BODY_W,
     colW: [2.4, BODY_W - 2.4],
     rowH: 0.42,
     fontFace: FONT, fontSize: 11,
@@ -221,7 +263,10 @@ function addOverview(pptx: Pptx, pal: BrandPalette, data: ProposalFormData) {
 
 function addRequirementSummary(pptx: Pptx, pal: BrandPalette, data: ProposalFormData) {
   const angle = data.winTheme?.angle
-  const slide = contentSlide(pptx, pal, '요구사항 구성', '02  REQUIREMENTS', angle)
+  const { slide, top } = contentSlide(pptx, pal, {
+    title: '요구사항 구성', eyebrow: `02 · ${STEP.문제}`,
+    lead: lead(angle, (a) => `요구사항을 유형별로 갈랐습니다. '${a}'과 직결되는 항목을 다음 장 앞머리에 둡니다.`),
+  })
   const reqs = data.rfp.requirements
   const kinds: RequirementKind[] = ['기능', '비기능', '기타']
   const kindColor = kindColors(pal)
@@ -232,22 +277,22 @@ function addRequirementSummary(pptx: Pptx, pal: BrandPalette, data: ProposalForm
   counts.forEach((c, i) => {
     const x = MARGIN + i * (cardW + 0.2)
     slide.addShape('rect', {
-      x, y: 1.4, w: cardW, h: 1.3,
+      x, y: top, w: cardW, h: 1.3,
       fill: { color: pal.band }, line: { color: pal.line, width: 1 },
     })
     slide.addText(`${c.n}`, {
-      x, y: 1.55, w: cardW, h: 0.6,
+      x, y: top + 0.15, w: cardW, h: 0.6,
       fontFace: FONT, fontSize: 30, bold: true, color: kindColor[c.kind], align: 'center',
     })
     slide.addText(`${c.kind} 요구사항`, {
-      x, y: 2.18, w: cardW, h: 0.3,
+      x, y: top + 0.78, w: cardW, h: 0.3,
       fontFace: FONT, fontSize: 11, color: pal.gray, align: 'center',
     })
   })
 
   slide.addText(
     `제안요청서에서 총 ${reqs.length}건의 요구사항을 식별했습니다. 각 요구사항에 대한 대응 방안은 다음 장에서 근거 페이지와 함께 제시합니다.`,
-    { x: MARGIN, y: 3.0, w: BODY_W, h: 0.6, fontFace: FONT, fontSize: 12, color: pal.ink, lineSpacingMultiple: 1.4 }
+    { x: MARGIN, y: top + 1.6, w: BODY_W, h: 0.6, fontFace: FONT, fontSize: 12, color: pal.ink, lineSpacingMultiple: 1.4 }
   )
 }
 
@@ -256,35 +301,55 @@ const ROWS_PER_SLIDE = 5
 
 function addRequirementResponses(pptx: Pptx, pal: BrandPalette, data: ProposalFormData) {
   const angle = data.winTheme?.angle
-  const reqs = data.rfp.requirements
-  if (reqs.length === 0) {
-    const slide = contentSlide(pptx, pal, '요구사항 대응 방안', '03  RESPONSE', angle)
+  if (data.rfp.requirements.length === 0) {
+    const { slide, top } = contentSlide(pptx, pal, { title: '요구사항 대응 방안', eyebrow: `03 · ${STEP.근거}` })
     slide.addText('제안요청서에서 요구사항을 식별하지 못했습니다.', {
-      x: MARGIN, y: 1.5, w: BODY_W, h: 0.4, fontFace: FONT, fontSize: 12, color: pal.gray,
+      x: MARGIN, y: top, w: BODY_W, h: 0.4, fontFace: FONT, fontSize: 12, color: pal.gray,
     })
     return
   }
+
+  // Win Theme의 근거로 인용된 요구사항을 앞으로 당긴다. 축을 세우는 항목부터
+  // 읽히도록 순서 자체를 바꾸는 것이, 문장을 반복하는 것보다 강한 정렬이다.
+  const proofCount = data.rfp.requirements.filter((r) => isThemeProof(data, r.requirement)).length
+  const reqs = [...data.rfp.requirements].sort(
+    (a, b) => Number(isThemeProof(data, b.requirement)) - Number(isThemeProof(data, a.requirement))
+  )
 
   const kindColor = kindColors(pal)
   const pages = Math.ceil(reqs.length / ROWS_PER_SLIDE)
   for (let p = 0; p < pages; p++) {
     const chunk = reqs.slice(p * ROWS_PER_SLIDE, (p + 1) * ROWS_PER_SLIDE)
     const title = pages > 1 ? `요구사항 대응 방안 (${p + 1}/${pages})` : '요구사항 대응 방안'
-    const slide = contentSlide(pptx, pal, title, '03  RESPONSE', angle)
+    const { slide, top } = contentSlide(pptx, pal, {
+      title,
+      eyebrow: `03 · ${STEP.근거}`,
+      // 첫 장에서만 정렬 원칙을 밝힌다. 매 장 반복하면 다시 소음이 된다.
+      lead:
+        p === 0 && proofCount > 0
+          ? lead(angle, (a) => `'${a}'을 직접 뒷받침하는 ${proofCount}건을 앞에 두었습니다.`)
+          : undefined,
+    })
 
     const rows = [
       tableHeader(pal, ['ID', '구분', 'RFP 요구사항', '대응 방안', '근거']),
-      ...chunk.map((r: RfpRequirementItem, i: number) => [
-        { text: `R-${p * ROWS_PER_SLIDE + i + 1}`, options: { bold: true, color: pal.brand, align: 'center' as const } },
-        { text: r.kind, options: { color: kindColor[r.kind], align: 'center' as const } },
-        { text: r.requirement, options: { color: pal.ink } },
-        { text: STANDARD_RESPONSE[r.kind], options: { color: pal.gray } },
-        { text: `${r.page}p`, options: { color: pal.gray, align: 'center' as const } },
-      ]),
+      ...chunk.map((r: RfpRequirementItem, i: number) => {
+        const proof = isThemeProof(data, r.requirement)
+        return [
+          {
+            text: `R-${p * ROWS_PER_SLIDE + i + 1}`,
+            options: { bold: true, color: proof ? pal.brand : pal.gray, align: 'center' as const },
+          },
+          { text: r.kind, options: { color: kindColor[r.kind], align: 'center' as const } },
+          { text: r.requirement, options: { color: pal.ink, bold: proof } },
+          { text: STANDARD_RESPONSE[r.kind], options: { color: pal.gray } },
+          { text: `${r.page}p`, options: { color: pal.gray, align: 'center' as const } },
+        ]
+      }),
     ]
 
     slide.addTable(rows, {
-      x: MARGIN, y: 1.3, w: BODY_W,
+      x: MARGIN, y: top, w: BODY_W,
       colW: [0.6, 0.75, 3.5, 3.55, 0.5],
       fontFace: FONT, fontSize: 9,
       border: { type: 'solid', color: pal.line, pt: 1 },
@@ -299,7 +364,10 @@ function addEvaluation(pptx: Pptx, pal: BrandPalette, data: ProposalFormData) {
   const evals = [...data.rfp.evaluations].sort((a, b) => (b.score ?? -1) - (a.score ?? -1))
   if (evals.length === 0) return
 
-  const slide = contentSlide(pptx, pal, '평가 기준별 대응', '04  EVALUATION', angle)
+  const { slide, top } = contentSlide(pptx, pal, {
+    title: '평가 기준별 대응', eyebrow: `04 · ${STEP.근거}`,
+    lead: lead(angle, (a) => `배점이 큰 항목부터, '${a}'을 근거로 대응합니다.`),
+  })
   const total = evals.reduce((s, e) => s + (e.score ?? 0), 0)
 
   const rows = [
@@ -312,7 +380,7 @@ function addEvaluation(pptx: Pptx, pal: BrandPalette, data: ProposalFormData) {
   ]
 
   slide.addTable(rows, {
-    x: MARGIN, y: 1.3, w: BODY_W,
+    x: MARGIN, y: top, w: BODY_W,
     colW: [4.0, 1.0, BODY_W - 5.0],
     fontFace: FONT, fontSize: 10,
     border: { type: 'solid', color: pal.line, pt: 1 },
@@ -330,7 +398,10 @@ function addEvaluation(pptx: Pptx, pal: BrandPalette, data: ProposalFormData) {
 
 function addSchedule(pptx: Pptx, pal: BrandPalette, data: ProposalFormData) {
   const angle = data.winTheme?.angle
-  const slide = contentSlide(pptx, pal, '추진 일정', '05  SCHEDULE', angle)
+  const { slide, top } = contentSlide(pptx, pal, {
+    title: '추진 일정', eyebrow: `05 · ${STEP.실행}`,
+    lead: lead(angle, (a) => `'${a}'을 언제 확인할 수 있는지를 단계마다 못 박았습니다.`),
+  })
 
   const phases = [
     { phase: 'Phase 1', period: '착수 ~ 4주', tasks: '착수 보고, 요구사항 상세 분석 및 확정, 현행 진단' },
@@ -349,7 +420,7 @@ function addSchedule(pptx: Pptx, pal: BrandPalette, data: ProposalFormData) {
   ]
 
   slide.addTable(rows, {
-    x: MARGIN, y: 1.35, w: BODY_W,
+    x: MARGIN, y: top, w: BODY_W,
     colW: [1.3, 1.7, BODY_W - 3.0],
     rowH: 0.5,
     fontFace: FONT, fontSize: 10,
@@ -366,10 +437,13 @@ function addSchedule(pptx: Pptx, pal: BrandPalette, data: ProposalFormData) {
 function addCompany(pptx: Pptx, pal: BrandPalette, data: ProposalFormData) {
   const angle = data.winTheme?.angle
   const { intro, coreCompetencies } = data.companyProfile
-  const slide = contentSlide(pptx, pal, '제안사 소개', '06  COMPANY', angle)
+  const { slide, top } = contentSlide(pptx, pal, {
+    title: '제안사 소개', eyebrow: `06 · ${STEP.실행}`,
+    lead: lead(angle, (a) => `'${a}'을 실행해 본 조직인가 — 아래가 그 근거입니다.`),
+  })
 
   slide.addText(intro || `${data.companyName}는 유사 사업 수행 경험을 바탕으로 본 사업을 수행합니다.`, {
-    x: MARGIN, y: 1.35, w: BODY_W, h: 0.9,
+    x: MARGIN, y: top, w: BODY_W, h: 0.9,
     fontFace: FONT, fontSize: 12, color: pal.ink, lineSpacingMultiple: 1.45, valign: 'top',
   })
 
@@ -391,7 +465,10 @@ function addTrackRecord(pptx: Pptx, pal: BrandPalette, data: ProposalFormData) {
   const records = data.companyProfile.trackRecords.filter((r) => r.client.trim() || r.description.trim())
   if (records.length === 0) return
 
-  const slide = contentSlide(pptx, pal, '주요 수행 실적', '07  TRACK RECORD', angle)
+  const { slide, top } = contentSlide(pptx, pal, {
+    title: '주요 수행 실적', eyebrow: `07 · ${STEP.실행}`,
+    lead: lead(angle, (a) => `같은 문제를 이미 다뤄 본 사업들입니다.`),
+  })
 
   const rows = [
     tableHeader(pal, ['고객사 / 프로젝트', '연도', '개요 및 성과']),
@@ -403,7 +480,7 @@ function addTrackRecord(pptx: Pptx, pal: BrandPalette, data: ProposalFormData) {
   ]
 
   slide.addTable(rows, {
-    x: MARGIN, y: 1.35, w: BODY_W,
+    x: MARGIN, y: top, w: BODY_W,
     colW: [2.6, 1.0, BODY_W - 3.6],
     fontFace: FONT, fontSize: 10,
     border: { type: 'solid', color: pal.line, pt: 1 },
@@ -415,13 +492,22 @@ function addTrackRecord(pptx: Pptx, pal: BrandPalette, data: ProposalFormData) {
 function addClosing(pptx: Pptx, pal: BrandPalette, data: ProposalFormData) {
   const slide = pptx.addSlide()
   slide.background = { color: pal.brandDark }
-  slide.addText('감사합니다', {
-    x: 0, y: 2.2, w: W, h: 0.8,
-    fontFace: FONT, fontSize: 30, bold: true, color: pal.paper, align: 'center',
+  const closing = data.winTheme?.headline.trim()
+  slide.addText(closing ? '약속드린 것' : '감사합니다', {
+    x: MARGIN, y: closing ? 1.5 : 2.2, w: BODY_W, h: 0.5,
+    fontFace: FONT, fontSize: closing ? 13 : 30, bold: true,
+    color: closing ? pal.brandMid : pal.paper, align: closing ? 'left' : 'center',
   })
+  if (closing) {
+    slide.addText(closing, {
+      x: MARGIN, y: 2.0, w: BODY_W * 0.9, h: 1.6,
+      fontFace: FONT, fontSize: 18, bold: true, color: pal.paper,
+      lineSpacingMultiple: 1.35, valign: 'top',
+    })
+  }
   slide.addText(data.companyName, {
-    x: 0, y: 3.0, w: W, h: 0.4,
-    fontFace: FONT, fontSize: 13, color: pal.brandPale, align: 'center',
+    x: MARGIN, y: closing ? 4.3 : 3.0, w: BODY_W, h: 0.4,
+    fontFace: FONT, fontSize: 13, color: pal.brandPale, align: closing ? 'left' : 'center',
   })
 }
 
@@ -437,9 +523,18 @@ export async function generateProposalPptx(data: ProposalFormData): Promise<Buff
   pptx.company = data.companyName
   pptx.title = data.rfp.projectName || '제안서'
 
-  const agenda = [...(data.winTheme?.headline.trim() ? ['제안 핵심 메시지'] : []), '사업 개요', '요구사항 구성', '요구사항 대응 방안', '평가 기준별 대응', '추진 일정', '제안사 소개']
+  // 목차는 장 이름과 함께 그 장이 논지에서 맡은 단계를 들고 다닌다.
+  const agenda: { label: string; step: string }[] = [
+    ...(data.winTheme?.headline.trim() ? [{ label: '제안 논지', step: STEP.기준 }] : []),
+    { label: '사업 개요', step: STEP.문제 },
+    { label: '요구사항 구성', step: STEP.문제 },
+    { label: '요구사항 대응 방안', step: STEP.근거 },
+    { label: '평가 기준별 대응', step: STEP.근거 },
+    { label: '추진 일정', step: STEP.실행 },
+    { label: '제안사 소개', step: STEP.실행 },
+  ]
   if (data.companyProfile.trackRecords.some((r) => r.client.trim() || r.description.trim())) {
-    agenda.push('주요 수행 실적')
+    agenda.push({ label: '주요 수행 실적', step: STEP.실행 })
   }
 
   addCover(pptx, pal, data)
