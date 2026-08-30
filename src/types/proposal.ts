@@ -59,6 +59,8 @@ export interface ProposalFormData {
   companyName: string          // 제안사 (우리 회사)
   preparedBy: string           // 작성자
   preparedDate: string         // 작성일
+  /** 선택·편집된 Win Theme 한 줄 선언 */
+  winTheme: string
   brand: BrandIdentity
   companyProfile: CompanyProfile
   rfp: RfpSource

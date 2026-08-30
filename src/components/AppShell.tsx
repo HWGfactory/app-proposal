@@ -4,13 +4,14 @@
 // 좌측 사이드바(Sidebar.tsx)를 대체한다.
 
 interface Props {
-  step: 'upload' | 'analysis' | 'form' | 'loading' | 'done'
+  step: 'upload' | 'analysis' | 'wintheme' | 'form' | 'loading' | 'done'
   onReset: () => void
   children: React.ReactNode
 }
 
 const FLOW: { label: string; steps: Props['step'][] }[] = [
   { label: 'RFP 업로드', steps: ['upload', 'analysis'] },
+  { label: 'Win Theme', steps: ['wintheme'] },
   { label: '제안서 작성', steps: ['form'] },
   { label: '문서 생성', steps: ['loading'] },
   { label: '다운로드', steps: ['done'] },

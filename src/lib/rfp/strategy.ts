@@ -43,10 +43,17 @@ export interface EvaluationFocus {
   relatedRequirements: { id: string; text: string; page: number }[]
 }
 
+export interface BackgroundLine {
+  text: string
+  page: number
+}
+
 export interface StrategyBrief {
   compliance: ComplianceItem[]
   keywords: RfpKeyword[]
   focus: EvaluationFocus[]
+  /** 사업 배경·목적 문단 — 고객의 의도를 읽을 수 있는 유일한 서술 */
+  background: BackgroundLine[]
   totalScore: number
   /** 본문 분량 제한 (페이지) */
   pageLimit: number | null
@@ -107,6 +114,36 @@ function detectPageLimit(lines: RfpLine[]): number | null {
     if (match) return Number(match[1])
   }
   return null
+}
+
+// ── 사업 배경 ────────────────────────────────────────────────────────────────
+
+// "1. 사업 배경 및 목적" 아래의 서술 문단. 고객이 왜 이 사업을 하는지가 적힌
+// 유일한 곳이라, Win Theme의 공감 근거가 된다.
+const BACKGROUND_HEADING = /배경|목적|추진\s*방향|현황|필요성/
+const HEADING_LIKE = /^(?:\d+(?:\.\d+)*[.)]?|[ⅠⅡⅢⅣⅤⅥⅦⅧⅨⅩ]+[.)]?)\s*\S/
+const MAX_BACKGROUND = 4
+
+function extractBackground(lines: RfpLine[]): BackgroundLine[] {
+  const collected: BackgroundLine[] = []
+  let inside = false
+
+  for (const line of lines) {
+    const text = line.text.trim()
+    if (HEADING_LIKE.test(text) && text.length <= 40) {
+      inside = BACKGROUND_HEADING.test(text)
+      continue
+    }
+    if (!inside) continue
+    // 목록 항목은 방향 나열이라 서술 문단만 남긴다.
+    if (/^[-–—•·○□▪]/.test(text)) continue
+    if (text.length < 20) continue
+
+    collected.push({ text, page: line.page })
+    if (collected.length >= MAX_BACKGROUND) break
+  }
+
+  return collected
 }
 
 // ── 핵심 키워드 ──────────────────────────────────────────────────────────────
@@ -242,6 +279,7 @@ export function buildStrategyBrief(
     compliance: detectCompliance(extracted.lines),
     keywords: extractKeywords(extracted, analysis),
     focus,
+    background: extractBackground(extracted.lines),
     totalScore,
     pageLimit,
   }

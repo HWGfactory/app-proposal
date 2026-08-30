@@ -116,6 +116,28 @@ function addAgenda(pptx: Pptx, pal: BrandPalette, sections: string[]) {
   )
 }
 
+// 제안 핵심 메시지 — 목차 바로 뒤에 두어 심사위원이 가장 먼저 읽게 한다.
+function addWinTheme(pptx: Pptx, pal: BrandPalette, data: ProposalFormData) {
+  if (!data.winTheme.trim()) return
+
+  const slide = contentSlide(pptx, pal, '제안 핵심 메시지', 'WIN THEME')
+
+  slide.addShape('rect', {
+    x: MARGIN, y: 1.5, w: 0.05, h: 1.6,
+    fill: { color: pal.brand },
+  })
+  slide.addText(data.winTheme, {
+    x: MARGIN + 0.3, y: 1.5, w: BODY_W - 0.3, h: 1.6,
+    fontFace: FONT, fontSize: 20, bold: true, color: pal.brandDeep,
+    lineSpacingMultiple: 1.35, valign: 'top',
+  })
+
+  slide.addText(
+    `${data.rfp.client || '발주기관'}이 제안요청서에 밝힌 요구사항 ${data.rfp.requirements.length}건과 평가 기준을 근거로 도출한 방향입니다.`,
+    { x: MARGIN + 0.3, y: 3.3, w: BODY_W - 0.3, h: 0.4, fontFace: FONT, fontSize: 11, color: pal.gray }
+  )
+}
+
 function addOverview(pptx: Pptx, pal: BrandPalette, data: ProposalFormData) {
   const slide = contentSlide(pptx, pal, '사업 개요', '01  OVERVIEW')
   const { rfp } = data
@@ -354,13 +376,14 @@ export async function generateProposalPptx(data: ProposalFormData): Promise<Buff
   pptx.company = data.companyName
   pptx.title = data.rfp.projectName || '제안서'
 
-  const agenda = ['사업 개요', '요구사항 구성', '요구사항 대응 방안', '평가 기준별 대응', '추진 일정', '제안사 소개']
+  const agenda = [...(data.winTheme.trim() ? ['제안 핵심 메시지'] : []), '사업 개요', '요구사항 구성', '요구사항 대응 방안', '평가 기준별 대응', '추진 일정', '제안사 소개']
   if (data.companyProfile.trackRecords.some((r) => r.client.trim() || r.description.trim())) {
     agenda.push('주요 수행 실적')
   }
 
   addCover(pptx, pal, data)
   addAgenda(pptx, pal, agenda)
+  addWinTheme(pptx, pal, data)
   addOverview(pptx, pal, data)
   addRequirementSummary(pptx, pal, data)
   addRequirementResponses(pptx, pal, data)

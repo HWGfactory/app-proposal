@@ -11,10 +11,12 @@ import RfpUploader from '@/components/RfpUploader'
 import RfpAnalysis from '@/components/RfpAnalysis'
 import type { RfpAnalysisResult } from '@/lib/rfp/analyze'
 import type { StrategyBrief } from '@/lib/rfp/strategy'
+import { buildWinThemes, type WinTheme } from '@/lib/rfp/winTheme'
+import WinThemeStep from '@/components/WinThemeStep'
 
 // RFP 업로드 → RFP 분석 → 제안서 작성 → 문서 생성 → 다운로드.
 // 좌측 사이드바와 브레드크럼은 없애고, 위치는 AppShell의 4단계 표시만으로 알린다.
-type Step = 'home' | 'upload' | 'analysis' | 'form' | 'loading' | 'done'
+type Step = 'home' | 'upload' | 'analysis' | 'wintheme' | 'form' | 'loading' | 'done'
 
 export default function HomePage() {
   const [step, setStep] = useState<Step>('home')
@@ -26,6 +28,8 @@ export default function HomePage() {
   const [rfpFileName, setRfpFileName] = useState('')
   const [rfpBrief, setRfpBrief] = useState<StrategyBrief | null>(null)
   const [rfpSource, setRfpSource] = useState<RfpSource | null>(null)
+  const [winThemes, setWinThemes] = useState<WinTheme[]>([])
+  const [winTheme, setWinTheme] = useState('')
 
   const handleFormSubmit = async (formData: ProposalFormData) => {
     setStep('loading')
@@ -65,6 +69,8 @@ export default function HomePage() {
     setRfpFileName('')
     setRfpBrief(null)
     setRfpSource(null)
+    setWinThemes([])
+    setWinTheme('')
     setStep('home')
   }
 
@@ -73,6 +79,8 @@ export default function HomePage() {
     setRfpFileName('')
     setRfpBrief(null)
     setRfpSource(null)
+    setWinThemes([])
+    setWinTheme('')
     setStep('upload')
   }
 
@@ -102,10 +110,22 @@ export default function HomePage() {
             onReset={startUpload}
             onUseForProposal={(built) => {
               setRfpSource(built)
-              setStep('form')
+              setWinThemes(buildWinThemes(rfpResult, rfpBrief))
+              setStep('wintheme')
             }}
           />
         </div>
+      )}
+
+      {step === 'wintheme' && (
+        <WinThemeStep
+          themes={winThemes}
+          onBack={() => setStep('analysis')}
+          onConfirm={(theme) => {
+            setWinTheme(theme.headline)
+            setStep('form')
+          }}
+        />
       )}
 
       {step === 'form' && rfpSource && (
@@ -113,7 +133,8 @@ export default function HomePage() {
           <ProposerForm
             rfp={rfpSource}
             onSubmit={handleFormSubmit}
-            onBack={() => setStep('analysis')}
+            winTheme={winTheme}
+            onBack={() => setStep('wintheme')}
             errorMsg={errorMsg}
           />
         </div>

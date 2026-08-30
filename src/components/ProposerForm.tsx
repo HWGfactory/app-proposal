@@ -8,6 +8,7 @@ import { defaultCompanyProfile } from '@/lib/companyProfile'
 
 interface Props {
   rfp: RfpSource          // RFP 분석 결과. 사업에 관한 내용은 전부 여기서 나온다.
+  winTheme: string        // 앞 단계에서 고르고 다듬은 한 줄 선언
   onSubmit: (data: ProposalFormData) => void
   onBack: () => void
   errorMsg?: string
@@ -28,7 +29,7 @@ function Field({ label, required, hint, children }: {
   )
 }
 
-export default function ProposerForm({ rfp, onSubmit, onBack, errorMsg }: Props) {
+export default function ProposerForm({ rfp, winTheme, onSubmit, onBack, errorMsg }: Props) {
   const today = new Date().toISOString().split('T')[0]
 
   const [companyName, setCompanyName] = useState('')
@@ -39,7 +40,7 @@ export default function ProposerForm({ rfp, onSubmit, onBack, errorMsg }: Props)
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
-    onSubmit({ companyName, preparedBy, preparedDate, brand, companyProfile, rfp })
+    onSubmit({ companyName, preparedBy, preparedDate, winTheme, brand, companyProfile, rfp })
   }
 
   return (
@@ -69,6 +70,13 @@ export default function ProposerForm({ rfp, onSubmit, onBack, errorMsg }: Props)
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z" />
           </svg>
           {errorMsg}
+        </div>
+      )}
+
+      {winTheme && (
+        <div className="mb-4 card px-4 py-3 border-l-[3px] border-l-brand-500">
+          <span className="section-label">선택한 Win Theme</span>
+          <p className="text-sm text-ink-900 leading-relaxed mt-1">{winTheme}</p>
         </div>
       )}
 
