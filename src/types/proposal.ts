@@ -1,4 +1,5 @@
 import type { RequirementKind } from '@/lib/rfp/analyze'
+import type { WinThemeEvidence } from '@/lib/rfp/winTheme'
 
 // ── RFP 원본 (제안서의 출발점) ───────────────────────────────────────────────
 // 제안서는 항상 특정 RFP에 대한 응답이다. 사용자가 입력하는 것은 제안사 정보뿐이며,
@@ -55,12 +56,19 @@ export interface BrandIdentity {
   primary: string | null       // 사용자가 고른 대표색
 }
 
+// 확정된 Win Theme. 문서 전체의 축이 되므로 한 줄 선언뿐 아니라 전략 축 이름과
+// 근거까지 함께 넘긴다.
+export interface WinThemeSelection {
+  angle: string
+  headline: string
+  evidence: WinThemeEvidence[]
+}
+
 export interface ProposalFormData {
   companyName: string          // 제안사 (우리 회사)
   preparedBy: string           // 작성자
   preparedDate: string         // 작성일
-  /** 선택·편집된 Win Theme 한 줄 선언 */
-  winTheme: string
+  winTheme: WinThemeSelection | null
   brand: BrandIdentity
   companyProfile: CompanyProfile
   rfp: RfpSource

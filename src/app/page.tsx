@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import type { ProposalFormData, RfpSource } from '@/types/proposal'
+import type { ProposalFormData, RfpSource, WinThemeSelection } from '@/types/proposal'
 import AppShell from '@/components/AppShell'
 import HomeHero from '@/components/HomeHero'
 import ProposerForm from '@/components/ProposerForm'
@@ -29,7 +29,7 @@ export default function HomePage() {
   const [rfpBrief, setRfpBrief] = useState<StrategyBrief | null>(null)
   const [rfpSource, setRfpSource] = useState<RfpSource | null>(null)
   const [winThemes, setWinThemes] = useState<WinTheme[]>([])
-  const [winTheme, setWinTheme] = useState('')
+  const [winTheme, setWinTheme] = useState<WinThemeSelection | null>(null)
 
   const handleFormSubmit = async (formData: ProposalFormData) => {
     setStep('loading')
@@ -70,7 +70,7 @@ export default function HomePage() {
     setRfpBrief(null)
     setRfpSource(null)
     setWinThemes([])
-    setWinTheme('')
+    setWinTheme(null)
     setStep('home')
   }
 
@@ -80,7 +80,7 @@ export default function HomePage() {
     setRfpBrief(null)
     setRfpSource(null)
     setWinThemes([])
-    setWinTheme('')
+    setWinTheme(null)
     setStep('upload')
   }
 
@@ -122,7 +122,7 @@ export default function HomePage() {
           themes={winThemes}
           onBack={() => setStep('analysis')}
           onConfirm={(theme) => {
-            setWinTheme(theme.headline)
+            setWinTheme({ angle: theme.angle, headline: theme.headline, evidence: theme.evidence })
             setStep('form')
           }}
         />

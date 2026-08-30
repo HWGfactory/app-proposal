@@ -1,14 +1,14 @@
 'use client'
 
 import { useState } from 'react'
-import type { BrandIdentity, CompanyProfile, ProposalFormData, RfpSource } from '@/types/proposal'
+import type { BrandIdentity, CompanyProfile, ProposalFormData, RfpSource, WinThemeSelection } from '@/types/proposal'
 import CompanyProfileSection from '@/components/CompanyProfileSection'
 import BrandLogoSection from '@/components/BrandLogoSection'
 import { defaultCompanyProfile } from '@/lib/companyProfile'
 
 interface Props {
   rfp: RfpSource          // RFP 분석 결과. 사업에 관한 내용은 전부 여기서 나온다.
-  winTheme: string        // 앞 단계에서 고르고 다듬은 한 줄 선언
+  winTheme: WinThemeSelection | null   // 앞 단계에서 고르고 다듬은 문서의 축
   onSubmit: (data: ProposalFormData) => void
   onBack: () => void
   errorMsg?: string
@@ -75,8 +75,8 @@ export default function ProposerForm({ rfp, winTheme, onSubmit, onBack, errorMsg
 
       {winTheme && (
         <div className="mb-4 card px-4 py-3 border-l-[3px] border-l-brand-500">
-          <span className="section-label">선택한 Win Theme</span>
-          <p className="text-sm text-ink-900 leading-relaxed mt-1">{winTheme}</p>
+          <span className="section-label">선택한 Win Theme · {winTheme.angle}</span>
+          <p className="text-sm text-ink-900 leading-relaxed mt-1">{winTheme.headline}</p>
         </div>
       )}
 
