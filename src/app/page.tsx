@@ -9,8 +9,12 @@ import CategorySelector from '@/components/CategorySelector'
 import ProposalForm from '@/components/ProposalForm'
 import LoadingScreen from '@/components/LoadingScreen'
 import DownloadScreen from '@/components/DownloadScreen'
+import RfpUploader from '@/components/RfpUploader'
+import RfpAnalysis from '@/components/RfpAnalysis'
+import type { RfpAnalysisResult } from '@/lib/rfp/analyze'
+import type { RfpPrefill } from '@/lib/rfp/prefill'
 
-type Step = 'home' | 'select' | 'form' | 'loading' | 'done'
+type Step = 'home' | 'rfp' | 'select' | 'form' | 'loading' | 'done'
 
 const CAT_LABEL: Record<ProposalCategory, string> = {
   AI: 'AI 솔루션',
@@ -20,6 +24,7 @@ const CAT_LABEL: Record<ProposalCategory, string> = {
 
 const STEP_LABEL: Record<Step, string> = {
   home: '홈',
+  rfp: 'RFP 분석',
   select: '모듈 선택',
   form: '정보 입력',
   loading: '생성 중',
@@ -32,6 +37,11 @@ export default function HomePage() {
   const [downloadUrl, setDownloadUrl] = useState<string | null>(null)
   const [fileName, setFileName] = useState('')
   const [errorMsg, setErrorMsg] = useState('')
+
+  // ── RFP 분석 ──
+  const [rfpResult, setRfpResult] = useState<RfpAnalysisResult | null>(null)
+  const [rfpFileName, setRfpFileName] = useState('')
+  const [rfpPrefill, setRfpPrefill] = useState<RfpPrefill | undefined>(undefined)
 
   const handleCategorySelect = (cat: ProposalCategory) => {
     setCategory(cat)
@@ -73,10 +83,21 @@ export default function HomePage() {
     setDownloadUrl(null)
     setFileName('')
     setCategory(null)
+    setRfpResult(null)
+    setRfpFileName('')
+    setRfpPrefill(undefined)
     setStep('home')
   }
 
-  const crumbs = ['Home', '신규 제안서', ...(category ? [CAT_LABEL[category]] : []), STEP_LABEL[step]]
+  const handleSelectRfp = () => {
+    setCategory(null)
+    setStep('rfp')
+  }
+
+  const crumbs =
+    step === 'rfp'
+      ? ['Home', STEP_LABEL[step]]
+      : ['Home', '신규 제안서', ...(category ? [CAT_LABEL[category]] : []), STEP_LABEL[step]]
 
   if (step === 'home') {
     return <HomeHero onStart={() => setStep('select')} />
@@ -87,14 +108,16 @@ export default function HomePage() {
       <Sidebar
         activeCategory={category}
         onSelectModule={handleCategorySelect}
+        onSelectRfp={handleSelectRfp}
+        rfpActive={step === 'rfp'}
         onHome={handleReset}
       />
 
       <div className="flex-1 flex flex-col min-w-0">
         <Topbar crumbs={crumbs} showReset={step !== 'select'} onReset={handleReset} />
 
-        {/* 스테이지 바 */}
-        {step !== 'loading' && (
+        {/* 스테이지 바 (RFP 분석은 제안서 생성 단계 밖의 도구라 표시하지 않는다) */}
+        {step !== 'loading' && step !== 'rfp' && (
           <div className="bg-white border-b border-line px-6 py-2.5">
             <div className="max-w-3xl mx-auto flex items-center gap-2">
               <StageDot n={1} active={step === 'select'} done={step !== 'select'} label="유형 선택" />
@@ -108,6 +131,31 @@ export default function HomePage() {
 
         {/* 콘텐츠 */}
         <main className="flex-1 px-6 py-8">
+          {step === 'rfp' && (
+            <div className="max-w-3xl mx-auto">
+              {rfpResult === null ? (
+                <RfpUploader
+                  onAnalyzed={(analyzed, name) => {
+                    setRfpResult(analyzed)
+                    setRfpFileName(name)
+                  }}
+                />
+              ) : (
+                <RfpAnalysis
+                  result={rfpResult}
+                  fileName={rfpFileName}
+                  onReset={() => {
+                    setRfpResult(null)
+                    setRfpFileName('')
+                  }}
+                  onUseForProposal={(prefill) => {
+                    setRfpPrefill(prefill)
+                    setStep('select')
+                  }}
+                />
+              )}
+            </div>
+          )}
           {step === 'select' && <CategorySelector onSelect={handleCategorySelect} />}
           {step === 'form' && category && (
             <ProposalForm
@@ -115,6 +163,7 @@ export default function HomePage() {
               onSubmit={handleFormSubmit}
               onBack={() => setStep('select')}
               errorMsg={errorMsg}
+              prefill={rfpPrefill}
             />
           )}
           {step === 'loading' && <LoadingScreen />}

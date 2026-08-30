@@ -7,16 +7,18 @@ import ScopeSection from '@/components/ScopeSection'
 import CompanyProfileSection from '@/components/CompanyProfileSection'
 import StructureSection from '@/components/StructureSection'
 import { defaultEstimate } from '@/lib/estimate'
-import { defaultScope } from '@/lib/scope'
+import { createScopeItem, defaultScope } from '@/lib/scope'
 import { defaultCompanyProfile } from '@/lib/companyProfile'
 import { detailedStructure } from '@/lib/sections'
 import { AI_INDUSTRIES, AI_INDUSTRY_PRESETS, type AIIndustry } from '@/lib/industryPresets'
+import type { RfpPrefill } from '@/lib/rfp/prefill'
 
 interface Props {
   category: ProposalCategory
   onSubmit: (data: ProposalFormData) => void
   onBack: () => void
   errorMsg?: string
+  prefill?: RfpPrefill   // RFP 분석에서 넘어온 초기값 (없으면 빈 폼)
 }
 
 const CAT_LABEL: Record<ProposalCategory, string> = {
@@ -58,19 +60,19 @@ function SectionHeader({ index, title, desc }: { index: string; title: string; d
   )
 }
 
-export default function ProposalForm({ category, onSubmit, onBack, errorMsg }: Props) {
+export default function ProposalForm({ category, onSubmit, onBack, errorMsg, prefill }: Props) {
   const today = new Date().toISOString().split('T')[0]
 
   // ── 공통 필드 ──
   const [base, setBase] = useState({
-    proposalTitle: '',
+    proposalTitle: prefill?.proposalTitle ?? '',
     companyName: '',
-    clientName: '',
+    clientName: prefill?.clientName ?? '',
     clientIndustry: '',
     preparedBy: '',
     preparedDate: today,
-    projectBudget: '',
-    projectDuration: '',
+    projectBudget: prefill?.projectBudget ?? '',
+    projectDuration: prefill?.projectDuration ?? '',
     executiveSummary: '',
   })
 
@@ -95,7 +97,11 @@ export default function ProposalForm({ category, onSubmit, onBack, errorMsg }: P
   })
 
   // ── 범위 정의 (In/Out Scope, 전제조건, 의존성) ──
-  const [scope, setScope] = useState<ScopeData>(defaultScope())
+  const [scope, setScope] = useState<ScopeData>(() => {
+    const base = defaultScope()
+    if (!prefill || prefill.inScope.length === 0) return base
+    return { ...base, inScope: prefill.inScope.map((text) => createScopeItem(text)) }
+  })
   const [scopeError, setScopeError] = useState('')
 
   // ── 항목별 견적 ──

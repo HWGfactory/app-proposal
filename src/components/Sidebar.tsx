@@ -5,6 +5,8 @@ import type { ProposalCategory } from '@/types/proposal'
 interface Props {
   activeCategory: ProposalCategory | null
   onSelectModule: (cat: ProposalCategory) => void
+  onSelectRfp: () => void
+  rfpActive: boolean
   onHome: () => void
 }
 
@@ -40,7 +42,7 @@ const MODULES: { id: ProposalCategory; label: string; icon: React.ReactNode }[] 
   },
 ]
 
-export default function Sidebar({ activeCategory, onSelectModule, onHome }: Props) {
+export default function Sidebar({ activeCategory, onSelectModule, onSelectRfp, rfpActive, onHome }: Props) {
   return (
     <aside className="w-60 shrink-0 bg-nav-900 text-nav-400 flex flex-col h-screen sticky top-0">
       {/* 로고 영역 */}
@@ -80,6 +82,29 @@ export default function Sidebar({ activeCategory, onSelectModule, onHome }: Prop
               </li>
             )
           })}
+        </ul>
+
+        <div className="px-4 mt-4 mb-1.5 text-[10px] font-bold uppercase tracking-widest text-nav-600">
+          도구
+        </div>
+        <ul className="flex flex-col gap-0.5 px-2">
+          <li>
+            <button
+              onClick={onSelectRfp}
+              className={`w-full flex items-center gap-2.5 px-2.5 py-2 rounded-[4px] text-[13px] font-medium transition-colors
+                ${rfpActive
+                  ? 'bg-brand-500/15 text-white border-l-2 border-brand-400 -ml-px pl-[9px]'
+                  : 'text-nav-400 hover:bg-nav-800 hover:text-white border-l-2 border-transparent pl-[9px]'}`}
+            >
+              <span className={`w-4 h-4 shrink-0 ${rfpActive ? 'text-brand-400' : 'text-nav-600'}`}>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.6}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M14 3H7a2 2 0 00-2 2v14a2 2 0 002 2h10a2 2 0 002-2V8l-5-5z" />
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M14 3v5h5M9 13h6M9 17h4" />
+                </svg>
+              </span>
+              RFP 분석
+            </button>
+          </li>
         </ul>
       </nav>
 

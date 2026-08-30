@@ -128,6 +128,17 @@ vercel --prod
 1. **폰트 크기와 여백 단위를 구분할 것**: 글자 크기(`TextRun.size`)는 `halfPt()`를, 문단 간격·들여쓰기·테두리(`spacing`/`indent`/`border`)는 `pt()` 또는 `twip()`을 씁니다. 이 둘을 섞으면 폰트가 실제 의도보다 10배 커지는 문제가 발생합니다.
 2. **모든 표의 `columnWidths`는 `scaleWidths([...])`를 통과시킬 것**: 열 너비를 직접 숫자로 넣으면 표가 실제 인쇄 가능 너비를 넘어서 오른쪽 여백을 침범합니다.
 
+### RFP PDF 업로드 기능 (`src/lib/rfp/`)
+
+`src/lib/rfp/extractText.ts`는 브라우저에서 `pdfjs-dist`로 PDF 텍스트를 추출합니다. pdfjs는 파싱을 별도 Worker 스크립트(`public/pdf.worker.min.mjs`)로 실행하는데, 이 파일은 `node_modules/pdfjs-dist/build/pdf.worker.min.mjs`를 그대로 복사해 커밋해 둔 것입니다.
+
+**⚠️ `pdfjs-dist`를 업그레이드하면 `public/pdf.worker.min.mjs`를 반드시 수동으로 재복사해야 합니다.** 버전이 어긋나면(`API version X, Worker version Y`) 브라우저 콘솔에 에러가 나며 PDF 파싱이 실패합니다.
+
+```bash
+npm install pdfjs-dist@latest
+cp node_modules/pdfjs-dist/build/pdf.worker.min.mjs public/pdf.worker.min.mjs
+```
+
 ---
 
 Made with Next.js + docx.js
