@@ -4,10 +4,13 @@ import { useState } from 'react'
 import type { RequirementKind, RfpAnalysisResult, RfpMeta } from '@/lib/rfp/analyze'
 import { buildRfpSource } from '@/lib/rfp/prefill'
 import type { RfpSource } from '@/types/proposal'
+import type { StrategyBrief } from '@/lib/rfp/strategy'
+import StrategyBriefSection from '@/components/StrategyBriefSection'
 
 interface Props {
   result: RfpAnalysisResult
   fileName: string
+  brief: StrategyBrief
   onReset: () => void
   onUseForProposal: (rfp: RfpSource) => void
 }
@@ -32,7 +35,7 @@ function PageBadge({ page }: { page: number }) {
   )
 }
 
-export default function RfpAnalysis({ result, fileName, onReset, onUseForProposal }: Props) {
+export default function RfpAnalysis({ result, fileName, brief, onReset, onUseForProposal }: Props) {
   const { meta, requirements, evaluations } = result
   const totalScore = evaluations.reduce((sum, e) => sum + (e.score ?? 0), 0)
 
@@ -174,6 +177,8 @@ export default function RfpAnalysis({ result, fileName, onReset, onUseForProposa
           )}
         </div>
       </div>
+
+      <StrategyBriefSection brief={brief} />
 
       {/* 제안서 작성으로 인계 */}
       <div className="flex items-center justify-end gap-3 pt-1">

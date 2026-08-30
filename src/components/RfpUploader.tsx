@@ -3,9 +3,10 @@
 import { useRef, useState } from 'react'
 import { extractPdfText } from '@/lib/rfp/extractText'
 import { analyzeRfp, type RfpAnalysisResult } from '@/lib/rfp/analyze'
+import { buildStrategyBrief, type StrategyBrief } from '@/lib/rfp/strategy'
 
 interface Props {
-  onAnalyzed: (result: RfpAnalysisResult, fileName: string) => void
+  onAnalyzed: (result: RfpAnalysisResult, brief: StrategyBrief, fileName: string) => void
 }
 
 // 업로드는 화면에서 유일한 일이다 — 정중앙에 드롭존만 둔다.
@@ -27,7 +28,8 @@ export default function RfpUploader({ onAnalyzed }: Props) {
     setFileName(file.name)
     try {
       const extracted = await extractPdfText(file)
-      onAnalyzed(analyzeRfp(extracted), file.name)
+      const analysis = analyzeRfp(extracted)
+      onAnalyzed(analysis, buildStrategyBrief(extracted, analysis), file.name)
     } catch (e) {
       setError(e instanceof Error ? e.message : 'PDF를 읽는 중 오류가 발생했습니다.')
     } finally {

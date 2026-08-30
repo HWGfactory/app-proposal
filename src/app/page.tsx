@@ -10,6 +10,7 @@ import DownloadScreen from '@/components/DownloadScreen'
 import RfpUploader from '@/components/RfpUploader'
 import RfpAnalysis from '@/components/RfpAnalysis'
 import type { RfpAnalysisResult } from '@/lib/rfp/analyze'
+import type { StrategyBrief } from '@/lib/rfp/strategy'
 
 // RFP 업로드 → RFP 분석 → 제안서 작성 → 문서 생성 → 다운로드.
 // 좌측 사이드바와 브레드크럼은 없애고, 위치는 AppShell의 4단계 표시만으로 알린다.
@@ -23,6 +24,7 @@ export default function HomePage() {
 
   const [rfpResult, setRfpResult] = useState<RfpAnalysisResult | null>(null)
   const [rfpFileName, setRfpFileName] = useState('')
+  const [rfpBrief, setRfpBrief] = useState<StrategyBrief | null>(null)
   const [rfpSource, setRfpSource] = useState<RfpSource | null>(null)
 
   const handleFormSubmit = async (formData: ProposalFormData) => {
@@ -61,6 +63,7 @@ export default function HomePage() {
     setFileName('')
     setRfpResult(null)
     setRfpFileName('')
+    setRfpBrief(null)
     setRfpSource(null)
     setStep('home')
   }
@@ -68,6 +71,7 @@ export default function HomePage() {
   const startUpload = () => {
     setRfpResult(null)
     setRfpFileName('')
+    setRfpBrief(null)
     setRfpSource(null)
     setStep('upload')
   }
@@ -80,19 +84,21 @@ export default function HomePage() {
     <AppShell step={step} onReset={handleReset}>
       {step === 'upload' && (
         <RfpUploader
-          onAnalyzed={(analyzed, name) => {
+          onAnalyzed={(analyzed, brief, name) => {
             setRfpResult(analyzed)
+            setRfpBrief(brief)
             setRfpFileName(name)
             setStep('analysis')
           }}
         />
       )}
 
-      {step === 'analysis' && rfpResult && (
+      {step === 'analysis' && rfpResult && rfpBrief && (
         <div className="max-w-[820px] mx-auto w-full">
           <RfpAnalysis
             result={rfpResult}
             fileName={rfpFileName}
+            brief={rfpBrief}
             onReset={startUpload}
             onUseForProposal={(built) => {
               setRfpSource(built)
