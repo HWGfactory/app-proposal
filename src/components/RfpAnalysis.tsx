@@ -2,13 +2,14 @@
 
 import { useState } from 'react'
 import type { RequirementKind, RfpAnalysisResult, RfpMeta } from '@/lib/rfp/analyze'
-import { buildPrefill, type RfpPrefill } from '@/lib/rfp/prefill'
+import { buildRfpSource } from '@/lib/rfp/prefill'
+import type { RfpSource } from '@/types/proposal'
 
 interface Props {
   result: RfpAnalysisResult
   fileName: string
   onReset: () => void
-  onUseForProposal: (prefill: RfpPrefill) => void
+  onUseForProposal: (rfp: RfpSource) => void
 }
 
 const KIND_STYLE: Record<RequirementKind, string> = {
@@ -183,11 +184,11 @@ export default function RfpAnalysis({ result, fileName, onReset, onUseForProposa
       {/* 제안서 작성으로 인계 */}
       <div className="flex items-center justify-end gap-3 pt-1">
         <span className="text-xs text-ink-400">
-          사업 개요와 선택한 요구사항 {selectedIds.size}건이 제안서 폼에 자동 입력됩니다
+          사업 개요와 선택한 요구사항 {selectedIds.size}건이 제안서에 자동 반영됩니다
         </span>
         <button
           type="button"
-          onClick={() => onUseForProposal(buildPrefill(result, selectedIds))}
+          onClick={() => onUseForProposal(buildRfpSource(result, selectedIds, fileName))}
           className="btn-primary"
         >
           이 내용으로 제안서 작성

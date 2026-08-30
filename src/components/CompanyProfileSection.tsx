@@ -1,8 +1,8 @@
 'use client'
 
-import type { CompanyProfile, ScopeItem, TrackRecordItem } from '@/types/proposal'
+import type { CompanyProfile, ProfileItem, TrackRecordItem } from '@/types/proposal'
 import { createTrackRecordItem } from '@/lib/companyProfile'
-import { newId } from '@/lib/estimate'
+import { newId } from '@/lib/id'
 
 interface Props {
   value: CompanyProfile
@@ -43,7 +43,7 @@ export default function CompanyProfileSection({ value, onChange }: Props) {
 
   const addCompetency = () => onChange({ ...value, coreCompetencies: [...value.coreCompetencies, { id: newId('comp'), text: '' }] })
   const updateCompetency = (id: string, text: string) =>
-    onChange({ ...value, coreCompetencies: value.coreCompetencies.map((c: ScopeItem) => (c.id === id ? { ...c, text } : c)) })
+    onChange({ ...value, coreCompetencies: value.coreCompetencies.map((c: ProfileItem) => (c.id === id ? { ...c, text } : c)) })
   const removeCompetency = (id: string) =>
     onChange({ ...value, coreCompetencies: value.coreCompetencies.filter((c) => c.id !== id) })
 

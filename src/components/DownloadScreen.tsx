@@ -46,7 +46,7 @@ export default function DownloadScreen({ downloadUrl, fileName, onReset }: Props
         </div>
 
         <div className="form-section-body">
-          <p className="text-sm text-ink-500 mb-3">Word 파일이 자동으로 다운로드됩니다. 완료되지 않았다면 아래 버튼을 눌러주세요.</p>
+          <p className="text-sm text-ink-500 mb-3">PPTX 파일이 자동으로 다운로드됩니다. 완료되지 않았다면 아래 버튼을 눌러주세요.</p>
           <div className="flex items-center gap-2.5 px-3 py-2.5 rounded-[4px] bg-surface-sunken border border-line mb-4">
             <svg className="w-4 h-4 text-brand-500 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.6} d="M7 21h10a2 2 0 002-2V9.5L14.5 4H7a2 2 0 00-2 2v13a2 2 0 002 2z" />

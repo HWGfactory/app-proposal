@@ -1,52 +1,40 @@
 'use client'
 
 import { useState } from 'react'
-import type { ProposalCategory, ProposalFormData } from '@/types/proposal'
+import type { ProposalFormData } from '@/types/proposal'
 import Sidebar from '@/components/Sidebar'
 import Topbar from '@/components/Topbar'
 import HomeHero from '@/components/HomeHero'
-import CategorySelector from '@/components/CategorySelector'
-import ProposalForm from '@/components/ProposalForm'
+import ProposerForm from '@/components/ProposerForm'
 import LoadingScreen from '@/components/LoadingScreen'
 import DownloadScreen from '@/components/DownloadScreen'
 import RfpUploader from '@/components/RfpUploader'
 import RfpAnalysis from '@/components/RfpAnalysis'
 import type { RfpAnalysisResult } from '@/lib/rfp/analyze'
-import type { RfpPrefill } from '@/lib/rfp/prefill'
+import type { RfpSource } from '@/types/proposal'
 
-type Step = 'home' | 'rfp' | 'select' | 'form' | 'loading' | 'done'
-
-const CAT_LABEL: Record<ProposalCategory, string> = {
-  AI: 'AI 솔루션',
-  CLOUD: '클라우드 전환',
-  ERP: 'ERP 구축',
-}
+// RFP 업로드 → RFP 분석 → 제안서 생성. 제안서는 항상 특정 RFP에 대한 응답이므로
+// 'form' 단계는 분석 결과(prefill) 없이는 진입할 수 없다.
+type Step = 'home' | 'upload' | 'analysis' | 'form' | 'loading' | 'done'
 
 const STEP_LABEL: Record<Step, string> = {
   home: '홈',
-  rfp: 'RFP 분석',
-  select: '모듈 선택',
-  form: '정보 입력',
+  upload: 'RFP 업로드',
+  analysis: 'RFP 분석',
+  form: '제안사 정보 입력',
   loading: '생성 중',
   done: '완료',
 }
 
 export default function HomePage() {
   const [step, setStep] = useState<Step>('home')
-  const [category, setCategory] = useState<ProposalCategory | null>(null)
   const [downloadUrl, setDownloadUrl] = useState<string | null>(null)
   const [fileName, setFileName] = useState('')
   const [errorMsg, setErrorMsg] = useState('')
 
-  // ── RFP 분석 ──
   const [rfpResult, setRfpResult] = useState<RfpAnalysisResult | null>(null)
   const [rfpFileName, setRfpFileName] = useState('')
-  const [rfpPrefill, setRfpPrefill] = useState<RfpPrefill | undefined>(undefined)
-
-  const handleCategorySelect = (cat: ProposalCategory) => {
-    setCategory(cat)
-    setStep('form')
-  }
+  const [rfpSource, setRfpSource] = useState<RfpSource | null>(null)
 
   const handleFormSubmit = async (formData: ProposalFormData) => {
     setStep('loading')
@@ -66,7 +54,7 @@ export default function HomePage() {
 
       const blob = await res.blob()
       const url = URL.createObjectURL(blob)
-      const name = `APP_${formData.category}_제안서_${formData.clientName}_${formData.preparedDate}.docx`
+      const name = `APP_제안서_${formData.rfp.client || formData.rfp.projectName || '제안'}_${formData.preparedDate}.pptx`
 
       setDownloadUrl(url)
       setFileName(name)
@@ -82,48 +70,42 @@ export default function HomePage() {
     if (downloadUrl) URL.revokeObjectURL(downloadUrl)
     setDownloadUrl(null)
     setFileName('')
-    setCategory(null)
     setRfpResult(null)
     setRfpFileName('')
-    setRfpPrefill(undefined)
+    setRfpSource(null)
     setStep('home')
   }
 
-  const handleSelectRfp = () => {
-    setCategory(null)
-    setStep('rfp')
+  const startUpload = () => {
+    setRfpResult(null)
+    setRfpFileName('')
+    setRfpSource(null)
+    setStep('upload')
   }
 
-  const crumbs =
-    step === 'rfp'
-      ? ['Home', STEP_LABEL[step]]
-      : ['Home', '신규 제안서', ...(category ? [CAT_LABEL[category]] : []), STEP_LABEL[step]]
+  const crumbs = ['Home', '신규 제안서', STEP_LABEL[step]]
 
   if (step === 'home') {
-    return <HomeHero onStart={() => setStep('select')} />
+    return <HomeHero onStart={startUpload} />
   }
+
+  const stageIndex = step === 'upload' || step === 'analysis' ? 0 : step === 'form' ? 1 : 2
 
   return (
     <div className="min-h-screen flex bg-surface">
-      <Sidebar
-        activeCategory={category}
-        onSelectModule={handleCategorySelect}
-        onSelectRfp={handleSelectRfp}
-        rfpActive={step === 'rfp'}
-        onHome={handleReset}
-      />
+      <Sidebar activeStep={step} onNewProposal={startUpload} onHome={handleReset} />
 
       <div className="flex-1 flex flex-col min-w-0">
-        <Topbar crumbs={crumbs} showReset={step !== 'select'} onReset={handleReset} />
+        <Topbar crumbs={crumbs} showReset onReset={handleReset} />
 
-        {/* 스테이지 바 (RFP 분석은 제안서 생성 단계 밖의 도구라 표시하지 않는다) */}
-        {step !== 'loading' && step !== 'rfp' && (
+        {/* 스테이지 바 */}
+        {step !== 'loading' && (
           <div className="bg-white border-b border-line px-6 py-2.5">
             <div className="max-w-3xl mx-auto flex items-center gap-2">
-              <StageDot n={1} active={step === 'select'} done={step !== 'select'} label="유형 선택" />
-              <StageBar filled={step !== 'select'} />
-              <StageDot n={2} active={step === 'form'} done={step === 'done'} label="정보 입력" />
-              <StageBar filled={step === 'done'} />
+              <StageDot n={1} active={stageIndex === 0} done={stageIndex > 0} label="RFP 분석" />
+              <StageBar filled={stageIndex > 0} />
+              <StageDot n={2} active={stageIndex === 1} done={stageIndex > 1} label="정보 입력" />
+              <StageBar filled={stageIndex > 1} />
               <StageDot n={3} active={step === 'done'} done={false} label="완료" />
             </div>
           </div>
@@ -131,41 +113,41 @@ export default function HomePage() {
 
         {/* 콘텐츠 */}
         <main className="flex-1 px-6 py-8">
-          {step === 'rfp' && (
+          {step === 'upload' && (
             <div className="max-w-3xl mx-auto">
-              {rfpResult === null ? (
-                <RfpUploader
-                  onAnalyzed={(analyzed, name) => {
-                    setRfpResult(analyzed)
-                    setRfpFileName(name)
-                  }}
-                />
-              ) : (
-                <RfpAnalysis
-                  result={rfpResult}
-                  fileName={rfpFileName}
-                  onReset={() => {
-                    setRfpResult(null)
-                    setRfpFileName('')
-                  }}
-                  onUseForProposal={(prefill) => {
-                    setRfpPrefill(prefill)
-                    setStep('select')
-                  }}
-                />
-              )}
+              <RfpUploader
+                onAnalyzed={(analyzed, name) => {
+                  setRfpResult(analyzed)
+                  setRfpFileName(name)
+                  setStep('analysis')
+                }}
+              />
             </div>
           )}
-          {step === 'select' && <CategorySelector onSelect={handleCategorySelect} />}
-          {step === 'form' && category && (
-            <ProposalForm
-              category={category}
+
+          {step === 'analysis' && rfpResult && (
+            <div className="max-w-3xl mx-auto">
+              <RfpAnalysis
+                result={rfpResult}
+                fileName={rfpFileName}
+                onReset={startUpload}
+                onUseForProposal={(built) => {
+                  setRfpSource(built)
+                  setStep('form')
+                }}
+              />
+            </div>
+          )}
+
+          {step === 'form' && rfpSource && (
+            <ProposerForm
+              rfp={rfpSource}
               onSubmit={handleFormSubmit}
-              onBack={() => setStep('select')}
+              onBack={() => setStep('analysis')}
               errorMsg={errorMsg}
-              prefill={rfpPrefill}
             />
           )}
+
           {step === 'loading' && <LoadingScreen />}
           {step === 'done' && downloadUrl && (
             <DownloadScreen downloadUrl={downloadUrl} fileName={fileName} onReset={handleReset} />

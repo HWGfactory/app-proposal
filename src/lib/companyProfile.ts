@@ -1,5 +1,5 @@
 import type { CompanyProfile, TrackRecordItem } from '@/types/proposal'
-import { newId } from '@/lib/estimate'
+import { newId } from '@/lib/id'
 
 export function createTrackRecordItem(partial: Partial<TrackRecordItem> = {}): TrackRecordItem {
   return {

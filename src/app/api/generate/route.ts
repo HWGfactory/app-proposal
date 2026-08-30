@@ -5,19 +5,18 @@ export async function POST(req: NextRequest) {
   try {
     const data: ProposalFormData = await req.json()
 
-    // 서버에서 docx 생성
-    const { generateProposalDocx } = await import('@/lib/generateDocx')
-    const blob = await generateProposalDocx(data)
-    const buffer = await blob.arrayBuffer()
+    // 서버에서 pptx 생성
+    const { generateProposalPptx } = await import('@/lib/generatePptx')
+    const buffer = await generateProposalPptx(data)
 
     const filename = encodeURIComponent(
-      `APP_${data.category}_제안서_${data.clientName}_${data.preparedDate}.docx`
+      `APP_제안서_${data.rfp.client || data.rfp.projectName || '제안'}_${data.preparedDate}.pptx`
     )
 
-    return new NextResponse(buffer, {
+    return new NextResponse(new Uint8Array(buffer), {
       status: 200,
       headers: {
-        'Content-Type': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        'Content-Type': 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
         'Content-Disposition': `attachment; filename*=UTF-8''${filename}`,
       },
     })
