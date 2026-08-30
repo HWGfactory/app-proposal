@@ -46,10 +46,20 @@ export interface CompanyProfile {
   trackRecords: TrackRecordItem[]     // 주요 수행 실적
 }
 
+// ── 브랜드 아이덴티티 ────────────────────────────────────────────────────────
+// 로고에서 뽑은 색이 제안서(PPTX) 전체 팔레트를 결정한다. 로고를 넣지 않으면
+// brandColor.ts의 DEFAULT_BRAND가 쓰인다.
+export interface BrandIdentity {
+  logoDataUrl: string | null   // PPTX 표지 삽입용 (data:image/png;base64,...)
+  colors: string[]             // 로고에서 추출한 색 후보 (#RRGGBB)
+  primary: string | null       // 사용자가 고른 대표색
+}
+
 export interface ProposalFormData {
   companyName: string          // 제안사 (우리 회사)
   preparedBy: string           // 작성자
   preparedDate: string         // 작성일
+  brand: BrandIdentity
   companyProfile: CompanyProfile
   rfp: RfpSource
 }

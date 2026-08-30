@@ -14,7 +14,7 @@ function DeleteBtn({ onClick }: { onClick: () => void }) {
     <button
       type="button"
       onClick={onClick}
-      className="w-7 h-7 rounded-[4px] flex items-center justify-center text-ink-300 hover:text-accent-red hover:bg-red-50 transition-colors shrink-0"
+      className="w-7 h-7 rounded-[6px] flex items-center justify-center text-ink-400 hover:text-brand-600 hover:bg-brand-50 transition-colors shrink-0"
     >
       <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M6 18L18 6M6 6l12 12" />
@@ -56,12 +56,10 @@ export default function CompanyProfileSection({ value, onChange }: Props) {
   return (
     <div className="form-section">
       <div className="form-section-header">
-        <span className="w-5 h-5 rounded-[3px] bg-brand-500 text-white text-[10px] font-bold flex items-center justify-center shrink-0">
-          5
-        </span>
+        <span className="fs-index">2</span>
         <div className="min-w-0">
-          <div className="font-semibold text-ink-900 text-[13px] leading-tight">회사 소개 및 수행 실적</div>
-          <div className="text-[11px] text-ink-400 mt-0.5">비워두면 문서에서 해당 항목이 생략됩니다 — 신뢰도를 높이려면 채워주세요</div>
+          <div className="fs-title">회사 소개 및 수행 실적</div>
+          <div className="fs-desc">비워두면 문서에서 해당 항목이 생략됩니다 — 신뢰도를 높이려면 채워주세요</div>
         </div>
       </div>
 

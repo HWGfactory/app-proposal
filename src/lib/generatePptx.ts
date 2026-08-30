@@ -8,6 +8,7 @@
 
 import type { ProposalFormData, RfpRequirementItem } from '@/types/proposal'
 import type { RequirementKind } from '@/lib/rfp/analyze'
+import { buildPalette, type BrandPalette } from '@/lib/brandColor'
 
 // 16:9 기준 (10 x 5.625 inch)
 const W = 10
@@ -15,17 +16,6 @@ const H = 5.625
 const MARGIN = 0.55
 const BODY_W = W - MARGIN * 2
 
-const C = {
-  brand: '1B75BB',
-  brandDeep: '0F4573',
-  ink: '1A1E28',
-  gray: '5C6270',
-  line: 'DCDFE5',
-  band: 'F4F5F7',
-  white: 'FFFFFF',
-  green: '2CA05A',
-  violet: '6B46C1',
-}
 
 const FONT = '맑은 고딕'
 
@@ -37,10 +27,9 @@ const STANDARD_RESPONSE: Record<RequirementKind, string> = {
   기타: '제안요청서에 명시된 조건을 계약 및 수행 계획에 반영하여 준수합니다.',
 }
 
-const KIND_COLOR: Record<RequirementKind, string> = {
-  기능: C.brand,
-  비기능: C.violet,
-  기타: C.gray,
+// 요구사항 유형 색도 브랜드 팔레트에서 파생한다.
+function kindColors(pal: BrandPalette): Record<RequirementKind, string> {
+  return { 기능: pal.brand, 비기능: pal.gray, 기타: 'A8A8A8' }
 }
 
 type Pptx = import('pptxgenjs').default
@@ -49,49 +38,59 @@ type Slide = ReturnType<Pptx['addSlide']>
 // ── 공통 레이아웃 ────────────────────────────────────────────────────────────
 
 /** 모든 본문 슬라이드에 공통으로 들어가는 제목 + 상단 규칙선 */
-function contentSlide(pptx: Pptx, title: string, eyebrow?: string): Slide {
+function contentSlide(pptx: Pptx, pal: BrandPalette, title: string, eyebrow?: string): Slide {
   const slide = pptx.addSlide()
-  slide.background = { color: C.white }
+  slide.background = { color: pal.white }
 
   if (eyebrow) {
     slide.addText(eyebrow, {
       x: MARGIN, y: 0.28, w: BODY_W, h: 0.22,
-      fontFace: FONT, fontSize: 10, color: C.brand, bold: true,
+      fontFace: FONT, fontSize: 10, color: pal.brand, bold: true,
     })
   }
   slide.addText(title, {
     x: MARGIN, y: eyebrow ? 0.5 : 0.38, w: BODY_W, h: 0.45,
-    fontFace: FONT, fontSize: 22, color: C.brandDeep, bold: true,
+    fontFace: FONT, fontSize: 22, color: pal.brandDeep, bold: true,
   })
   slide.addShape('rect', {
     x: MARGIN, y: eyebrow ? 1.0 : 0.88, w: BODY_W, h: 0.025,
-    fill: { color: C.brand },
+    fill: { color: pal.brand },
   })
   return slide
 }
 
-function tableHeader(labels: string[]) {
+function tableHeader(pal: BrandPalette, labels: string[]) {
   return labels.map((text) => ({
     text,
-    options: { bold: true, color: C.white, fill: { color: C.brandDeep }, align: 'center' as const },
+    options: { bold: true, color: pal.paper, fill: { color: pal.brandDeep }, align: 'center' as const },
   }))
 }
 
 // ── 슬라이드 ─────────────────────────────────────────────────────────────────
 
-function addCover(pptx: Pptx, data: ProposalFormData) {
+function addCover(pptx: Pptx, pal: BrandPalette, data: ProposalFormData) {
   const slide = pptx.addSlide()
-  slide.background = { color: C.brandDeep }
+  slide.background = { color: pal.brandDark }
+
+  // 로고는 좌상단에 원본 비율을 유지한 채 올린다.
+  // sizing.type 'contain'이라야 세로로 긴 로고도 찌그러지지 않는다.
+  if (data.brand.logoDataUrl) {
+    slide.addImage({
+      data: data.brand.logoDataUrl,
+      x: MARGIN, y: 0.5, w: 1.5, h: 0.62,
+      sizing: { type: 'contain', w: 1.5, h: 0.62 },
+    })
+  }
 
   slide.addText('제안요청서(RFP) 대응 제안서', {
     x: MARGIN, y: 1.55, w: BODY_W, h: 0.3,
-    fontFace: FONT, fontSize: 12, color: 'A6CEEE', bold: true,
+    fontFace: FONT, fontSize: 12, color: pal.brandMid, bold: true,
   })
   slide.addText(data.rfp.projectName || '제안서', {
     x: MARGIN, y: 1.95, w: BODY_W, h: 1.0,
-    fontFace: FONT, fontSize: 32, color: C.white, bold: true,
+    fontFace: FONT, fontSize: 32, color: pal.paper, bold: true,
   })
-  slide.addShape('rect', { x: MARGIN, y: 3.05, w: 1.6, h: 0.04, fill: { color: '3591D6' } })
+  slide.addShape('rect', { x: MARGIN, y: 3.05, w: 1.6, h: 0.04, fill: { color: pal.brandMid } })
 
   const meta = [
     data.rfp.client ? `${data.rfp.client} 귀중` : null,
@@ -102,23 +101,23 @@ function addCover(pptx: Pptx, data: ProposalFormData) {
 
   slide.addText(meta, {
     x: MARGIN, y: 3.35, w: BODY_W, h: 1.2,
-    fontFace: FONT, fontSize: 12, color: 'D2E7F6', lineSpacingMultiple: 1.4,
+    fontFace: FONT, fontSize: 12, color: pal.brandPale, lineSpacingMultiple: 1.4,
   })
 }
 
-function addAgenda(pptx: Pptx, sections: string[]) {
-  const slide = contentSlide(pptx, '목차', 'AGENDA')
+function addAgenda(pptx: Pptx, pal: BrandPalette, sections: string[]) {
+  const slide = contentSlide(pptx, pal, '목차', 'AGENDA')
   slide.addText(
     sections.map((s, i) => ({
       text: `${String(i + 1).padStart(2, '0')}   ${s}`,
-      options: { breakLine: true, fontSize: 14, color: C.ink, bold: false },
+      options: { breakLine: true, fontSize: 14, color: pal.ink, bold: false },
     })),
     { x: MARGIN + 0.15, y: 1.35, w: BODY_W - 0.3, h: 3.6, fontFace: FONT, lineSpacingMultiple: 1.9 }
   )
 }
 
-function addOverview(pptx: Pptx, data: ProposalFormData) {
-  const slide = contentSlide(pptx, '사업 개요', '01  OVERVIEW')
+function addOverview(pptx: Pptx, pal: BrandPalette, data: ProposalFormData) {
+  const slide = contentSlide(pptx, pal, '사업 개요', '01  OVERVIEW')
   const { rfp } = data
 
   const rows = [
@@ -129,8 +128,8 @@ function addOverview(pptx: Pptx, data: ProposalFormData) {
     ['근거 문서', rfp.fileName || '제안요청서'],
     ['식별 요구사항', `${rfp.requirements.length}건`],
   ].map(([k, v]) => [
-    { text: k, options: { bold: true, color: C.brandDeep, fill: { color: C.band } } },
-    { text: v, options: { color: C.ink } },
+    { text: k, options: { bold: true, color: pal.brandDeep, fill: { color: pal.band } } },
+    { text: v, options: { color: pal.ink } },
   ])
 
   slide.addTable(rows, {
@@ -138,15 +137,16 @@ function addOverview(pptx: Pptx, data: ProposalFormData) {
     colW: [2.4, BODY_W - 2.4],
     rowH: 0.42,
     fontFace: FONT, fontSize: 11,
-    border: { type: 'solid', color: C.line, pt: 1 },
+    border: { type: 'solid', color: pal.line, pt: 1 },
     valign: 'middle',
   })
 }
 
-function addRequirementSummary(pptx: Pptx, data: ProposalFormData) {
-  const slide = contentSlide(pptx, '요구사항 구성', '02  REQUIREMENTS')
+function addRequirementSummary(pptx: Pptx, pal: BrandPalette, data: ProposalFormData) {
+  const slide = contentSlide(pptx, pal, '요구사항 구성', '02  REQUIREMENTS')
   const reqs = data.rfp.requirements
   const kinds: RequirementKind[] = ['기능', '비기능', '기타']
+  const kindColor = kindColors(pal)
   const counts = kinds.map((k) => ({ kind: k, n: reqs.filter((r) => r.kind === k).length }))
 
   // 유형별 카드
@@ -155,51 +155,52 @@ function addRequirementSummary(pptx: Pptx, data: ProposalFormData) {
     const x = MARGIN + i * (cardW + 0.2)
     slide.addShape('rect', {
       x, y: 1.4, w: cardW, h: 1.3,
-      fill: { color: C.band }, line: { color: C.line, width: 1 },
+      fill: { color: pal.band }, line: { color: pal.line, width: 1 },
     })
     slide.addText(`${c.n}`, {
       x, y: 1.55, w: cardW, h: 0.6,
-      fontFace: FONT, fontSize: 30, bold: true, color: KIND_COLOR[c.kind], align: 'center',
+      fontFace: FONT, fontSize: 30, bold: true, color: kindColor[c.kind], align: 'center',
     })
     slide.addText(`${c.kind} 요구사항`, {
       x, y: 2.18, w: cardW, h: 0.3,
-      fontFace: FONT, fontSize: 11, color: C.gray, align: 'center',
+      fontFace: FONT, fontSize: 11, color: pal.gray, align: 'center',
     })
   })
 
   slide.addText(
     `제안요청서에서 총 ${reqs.length}건의 요구사항을 식별했습니다. 각 요구사항에 대한 대응 방안은 다음 장에서 근거 페이지와 함께 제시합니다.`,
-    { x: MARGIN, y: 3.0, w: BODY_W, h: 0.6, fontFace: FONT, fontSize: 12, color: C.ink, lineSpacingMultiple: 1.4 }
+    { x: MARGIN, y: 3.0, w: BODY_W, h: 0.6, fontFace: FONT, fontSize: 12, color: pal.ink, lineSpacingMultiple: 1.4 }
   )
 }
 
 /** 요구사항이 많으면 한 슬라이드에 다 들어가지 않으므로 나눠 담는다. */
 const ROWS_PER_SLIDE = 5
 
-function addRequirementResponses(pptx: Pptx, data: ProposalFormData) {
+function addRequirementResponses(pptx: Pptx, pal: BrandPalette, data: ProposalFormData) {
   const reqs = data.rfp.requirements
   if (reqs.length === 0) {
-    const slide = contentSlide(pptx, '요구사항 대응 방안', '03  RESPONSE')
+    const slide = contentSlide(pptx, pal, '요구사항 대응 방안', '03  RESPONSE')
     slide.addText('제안요청서에서 요구사항을 식별하지 못했습니다.', {
-      x: MARGIN, y: 1.5, w: BODY_W, h: 0.4, fontFace: FONT, fontSize: 12, color: C.gray,
+      x: MARGIN, y: 1.5, w: BODY_W, h: 0.4, fontFace: FONT, fontSize: 12, color: pal.gray,
     })
     return
   }
 
+  const kindColor = kindColors(pal)
   const pages = Math.ceil(reqs.length / ROWS_PER_SLIDE)
   for (let p = 0; p < pages; p++) {
     const chunk = reqs.slice(p * ROWS_PER_SLIDE, (p + 1) * ROWS_PER_SLIDE)
     const title = pages > 1 ? `요구사항 대응 방안 (${p + 1}/${pages})` : '요구사항 대응 방안'
-    const slide = contentSlide(pptx, title, '03  RESPONSE')
+    const slide = contentSlide(pptx, pal, title, '03  RESPONSE')
 
     const rows = [
-      tableHeader(['ID', '구분', 'RFP 요구사항', '대응 방안', '근거']),
+      tableHeader(pal, ['ID', '구분', 'RFP 요구사항', '대응 방안', '근거']),
       ...chunk.map((r: RfpRequirementItem, i: number) => [
-        { text: `R-${p * ROWS_PER_SLIDE + i + 1}`, options: { bold: true, color: C.brand, align: 'center' as const } },
-        { text: r.kind, options: { color: KIND_COLOR[r.kind], align: 'center' as const } },
-        { text: r.requirement, options: { color: C.ink } },
-        { text: STANDARD_RESPONSE[r.kind], options: { color: C.gray } },
-        { text: `${r.page}p`, options: { color: C.gray, align: 'center' as const } },
+        { text: `R-${p * ROWS_PER_SLIDE + i + 1}`, options: { bold: true, color: pal.brand, align: 'center' as const } },
+        { text: r.kind, options: { color: kindColor[r.kind], align: 'center' as const } },
+        { text: r.requirement, options: { color: pal.ink } },
+        { text: STANDARD_RESPONSE[r.kind], options: { color: pal.gray } },
+        { text: `${r.page}p`, options: { color: pal.gray, align: 'center' as const } },
       ]),
     ]
 
@@ -207,26 +208,26 @@ function addRequirementResponses(pptx: Pptx, data: ProposalFormData) {
       x: MARGIN, y: 1.3, w: BODY_W,
       colW: [0.6, 0.75, 3.5, 3.55, 0.5],
       fontFace: FONT, fontSize: 9,
-      border: { type: 'solid', color: C.line, pt: 1 },
+      border: { type: 'solid', color: pal.line, pt: 1 },
       valign: 'middle',
       autoPage: false,
     })
   }
 }
 
-function addEvaluation(pptx: Pptx, data: ProposalFormData) {
+function addEvaluation(pptx: Pptx, pal: BrandPalette, data: ProposalFormData) {
   const evals = [...data.rfp.evaluations].sort((a, b) => (b.score ?? -1) - (a.score ?? -1))
   if (evals.length === 0) return
 
-  const slide = contentSlide(pptx, '평가 기준별 대응', '04  EVALUATION')
+  const slide = contentSlide(pptx, pal, '평가 기준별 대응', '04  EVALUATION')
   const total = evals.reduce((s, e) => s + (e.score ?? 0), 0)
 
   const rows = [
-    tableHeader(['평가 항목', '배점', '대응 근거']),
+    tableHeader(pal, ['평가 항목', '배점', '대응 근거']),
     ...evals.map((e) => [
-      { text: e.label, options: { bold: true, color: C.brandDeep } },
-      { text: e.score !== null ? `${e.score}점` : '-', options: { align: 'center' as const, color: C.ink } },
-      { text: '본 제안서의 해당 장에서 근거와 함께 제시', options: { color: C.gray } },
+      { text: e.label, options: { bold: true, color: pal.brandDeep } },
+      { text: e.score !== null ? `${e.score}점` : '-', options: { align: 'center' as const, color: pal.ink } },
+      { text: '본 제안서의 해당 장에서 근거와 함께 제시', options: { color: pal.gray } },
     ]),
   ]
 
@@ -234,7 +235,7 @@ function addEvaluation(pptx: Pptx, data: ProposalFormData) {
     x: MARGIN, y: 1.3, w: BODY_W,
     colW: [4.0, 1.0, BODY_W - 5.0],
     fontFace: FONT, fontSize: 10,
-    border: { type: 'solid', color: C.line, pt: 1 },
+    border: { type: 'solid', color: pal.line, pt: 1 },
     valign: 'middle',
     autoPage: false,
   })
@@ -242,13 +243,13 @@ function addEvaluation(pptx: Pptx, data: ProposalFormData) {
   if (total > 0) {
     slide.addText(`확인된 배점 합계 ${total}점 · 배점이 높은 항목을 우선 순위로 제안 내용을 구성했습니다.`, {
       x: MARGIN, y: H - 0.85, w: BODY_W, h: 0.35,
-      fontFace: FONT, fontSize: 10, color: C.gray,
+      fontFace: FONT, fontSize: 10, color: pal.gray,
     })
   }
 }
 
-function addSchedule(pptx: Pptx, data: ProposalFormData) {
-  const slide = contentSlide(pptx, '추진 일정', '05  SCHEDULE')
+function addSchedule(pptx: Pptx, pal: BrandPalette, data: ProposalFormData) {
+  const slide = contentSlide(pptx, pal, '추진 일정', '05  SCHEDULE')
 
   const phases = [
     { phase: 'Phase 1', period: '착수 ~ 4주', tasks: '착수 보고, 요구사항 상세 분석 및 확정, 현행 진단' },
@@ -258,11 +259,11 @@ function addSchedule(pptx: Pptx, data: ProposalFormData) {
   ]
 
   const rows = [
-    tableHeader(['단계', '기간', '주요 활동']),
+    tableHeader(pal, ['단계', '기간', '주요 활동']),
     ...phases.map((p) => [
-      { text: p.phase, options: { bold: true, color: C.brand, align: 'center' as const } },
-      { text: p.period, options: { align: 'center' as const, color: C.ink } },
-      { text: p.tasks, options: { color: C.ink } },
+      { text: p.phase, options: { bold: true, color: pal.brand, align: 'center' as const } },
+      { text: p.period, options: { align: 'center' as const, color: pal.ink } },
+      { text: p.tasks, options: { color: pal.ink } },
     ]),
   ]
 
@@ -271,50 +272,50 @@ function addSchedule(pptx: Pptx, data: ProposalFormData) {
     colW: [1.3, 1.7, BODY_W - 3.0],
     rowH: 0.5,
     fontFace: FONT, fontSize: 10,
-    border: { type: 'solid', color: C.line, pt: 1 },
+    border: { type: 'solid', color: pal.line, pt: 1 },
     valign: 'middle',
   })
 
   slide.addText(
     `※ 총 사업 기간 ${data.rfp.duration || '(제안요청서 미명시)'} 기준의 표준 일정이며, 착수 단계에서 협의하여 확정합니다.`,
-    { x: MARGIN, y: H - 0.85, w: BODY_W, h: 0.35, fontFace: FONT, fontSize: 10, color: C.gray }
+    { x: MARGIN, y: H - 0.85, w: BODY_W, h: 0.35, fontFace: FONT, fontSize: 10, color: pal.gray }
   )
 }
 
-function addCompany(pptx: Pptx, data: ProposalFormData) {
+function addCompany(pptx: Pptx, pal: BrandPalette, data: ProposalFormData) {
   const { intro, coreCompetencies } = data.companyProfile
-  const slide = contentSlide(pptx, '제안사 소개', '06  COMPANY')
+  const slide = contentSlide(pptx, pal, '제안사 소개', '06  COMPANY')
 
   slide.addText(intro || `${data.companyName}는 유사 사업 수행 경험을 바탕으로 본 사업을 수행합니다.`, {
     x: MARGIN, y: 1.35, w: BODY_W, h: 0.9,
-    fontFace: FONT, fontSize: 12, color: C.ink, lineSpacingMultiple: 1.45, valign: 'top',
+    fontFace: FONT, fontSize: 12, color: pal.ink, lineSpacingMultiple: 1.45, valign: 'top',
   })
 
   const items = coreCompetencies.filter((c) => c.text.trim().length > 0)
   if (items.length > 0) {
     slide.addText('핵심 역량', {
       x: MARGIN, y: 2.4, w: BODY_W, h: 0.3,
-      fontFace: FONT, fontSize: 13, bold: true, color: C.brandDeep,
+      fontFace: FONT, fontSize: 13, bold: true, color: pal.brandDeep,
     })
     slide.addText(
       items.map((c) => ({ text: c.text, options: { breakLine: true, bullet: { code: '25AA' } } })),
-      { x: MARGIN + 0.1, y: 2.75, w: BODY_W - 0.2, h: 2.1, fontFace: FONT, fontSize: 11, color: C.ink, lineSpacingMultiple: 1.5 }
+      { x: MARGIN + 0.1, y: 2.75, w: BODY_W - 0.2, h: 2.1, fontFace: FONT, fontSize: 11, color: pal.ink, lineSpacingMultiple: 1.5 }
     )
   }
 }
 
-function addTrackRecord(pptx: Pptx, data: ProposalFormData) {
+function addTrackRecord(pptx: Pptx, pal: BrandPalette, data: ProposalFormData) {
   const records = data.companyProfile.trackRecords.filter((r) => r.client.trim() || r.description.trim())
   if (records.length === 0) return
 
-  const slide = contentSlide(pptx, '주요 수행 실적', '07  TRACK RECORD')
+  const slide = contentSlide(pptx, pal, '주요 수행 실적', '07  TRACK RECORD')
 
   const rows = [
-    tableHeader(['고객사 / 프로젝트', '연도', '개요 및 성과']),
+    tableHeader(pal, ['고객사 / 프로젝트', '연도', '개요 및 성과']),
     ...records.slice(0, 6).map((r) => [
-      { text: r.client || '-', options: { bold: true, color: C.brand } },
-      { text: r.year || '-', options: { align: 'center' as const, color: C.ink } },
-      { text: r.description || '-', options: { color: C.ink } },
+      { text: r.client || '-', options: { bold: true, color: pal.brand } },
+      { text: r.year || '-', options: { align: 'center' as const, color: pal.ink } },
+      { text: r.description || '-', options: { color: pal.ink } },
     ]),
   ]
 
@@ -322,22 +323,22 @@ function addTrackRecord(pptx: Pptx, data: ProposalFormData) {
     x: MARGIN, y: 1.35, w: BODY_W,
     colW: [2.6, 1.0, BODY_W - 3.6],
     fontFace: FONT, fontSize: 10,
-    border: { type: 'solid', color: C.line, pt: 1 },
+    border: { type: 'solid', color: pal.line, pt: 1 },
     valign: 'middle',
     autoPage: false,
   })
 }
 
-function addClosing(pptx: Pptx, data: ProposalFormData) {
+function addClosing(pptx: Pptx, pal: BrandPalette, data: ProposalFormData) {
   const slide = pptx.addSlide()
-  slide.background = { color: C.brandDeep }
+  slide.background = { color: pal.brandDark }
   slide.addText('감사합니다', {
     x: 0, y: 2.2, w: W, h: 0.8,
-    fontFace: FONT, fontSize: 30, bold: true, color: C.white, align: 'center',
+    fontFace: FONT, fontSize: 30, bold: true, color: pal.paper, align: 'center',
   })
   slide.addText(data.companyName, {
     x: 0, y: 3.0, w: W, h: 0.4,
-    fontFace: FONT, fontSize: 13, color: 'A6CEEE', align: 'center',
+    fontFace: FONT, fontSize: 13, color: pal.brandPale, align: 'center',
   })
 }
 
@@ -346,6 +347,7 @@ function addClosing(pptx: Pptx, data: ProposalFormData) {
 export async function generateProposalPptx(data: ProposalFormData): Promise<Buffer> {
   const PptxGenJS = (await import('pptxgenjs')).default
   const pptx = new PptxGenJS()
+  const pal = buildPalette(data.brand.primary ?? undefined)
 
   pptx.layout = 'LAYOUT_16x9'
   pptx.author = data.companyName
@@ -357,16 +359,16 @@ export async function generateProposalPptx(data: ProposalFormData): Promise<Buff
     agenda.push('주요 수행 실적')
   }
 
-  addCover(pptx, data)
-  addAgenda(pptx, agenda)
-  addOverview(pptx, data)
-  addRequirementSummary(pptx, data)
-  addRequirementResponses(pptx, data)
-  addEvaluation(pptx, data)
-  addSchedule(pptx, data)
-  addCompany(pptx, data)
-  addTrackRecord(pptx, data)
-  addClosing(pptx, data)
+  addCover(pptx, pal, data)
+  addAgenda(pptx, pal, agenda)
+  addOverview(pptx, pal, data)
+  addRequirementSummary(pptx, pal, data)
+  addRequirementResponses(pptx, pal, data)
+  addEvaluation(pptx, pal, data)
+  addSchedule(pptx, pal, data)
+  addCompany(pptx, pal, data)
+  addTrackRecord(pptx, pal, data)
+  addClosing(pptx, pal, data)
 
   return (await pptx.write({ outputType: 'nodebuffer' })) as Buffer
 }

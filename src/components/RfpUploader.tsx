@@ -8,10 +8,12 @@ interface Props {
   onAnalyzed: (result: RfpAnalysisResult, fileName: string) => void
 }
 
+// 업로드는 화면에서 유일한 일이다 — 정중앙에 드롭존만 둔다.
 export default function RfpUploader({ onAnalyzed }: Props) {
   const inputRef = useRef<HTMLInputElement>(null)
   const [dragging, setDragging] = useState(false)
   const [busy, setBusy] = useState(false)
+  const [fileName, setFileName] = useState('')
   const [error, setError] = useState('')
 
   const handleFile = async (file: File) => {
@@ -22,6 +24,7 @@ export default function RfpUploader({ onAnalyzed }: Props) {
 
     setBusy(true)
     setError('')
+    setFileName(file.name)
     try {
       const extracted = await extractPdfText(file)
       onAnalyzed(analyzeRfp(extracted), file.name)
@@ -33,54 +36,67 @@ export default function RfpUploader({ onAnalyzed }: Props) {
   }
 
   return (
-    <div className="form-section">
-      <div className="form-section-header">
-        <span className="w-5 h-5 rounded-[3px] bg-brand-500 text-white text-[10px] font-bold flex items-center justify-center shrink-0">
-          1
-        </span>
-        <div className="min-w-0">
-          <div className="font-semibold text-ink-900 text-[13px] leading-tight">제안요청서(RFP) 업로드</div>
-          <div className="text-[11px] text-ink-400 mt-0.5">
-            텍스트가 포함된 PDF에서 요구사항과 평가 기준을 자동으로 추출합니다. 파일은 브라우저 안에서만 처리되며 서버로 전송되지 않습니다
-          </div>
+    <div className="flex-1 flex items-center justify-center">
+      <div className="w-[620px] flex flex-col items-center gap-7">
+        <div className="flex flex-col items-center gap-2.5 text-center">
+          <h1 className="text-[28px] font-bold text-ink-900 tracking-tight leading-tight">
+            제안요청서(RFP) 업로드
+          </h1>
+          <p className="text-sm text-ink-700 font-light leading-relaxed max-w-[520px] text-pretty">
+            텍스트가 포함된 PDF에서 요구사항과 평가 기준을 자동으로 추출합니다.
+            파일은 브라우저 안에서만 처리되며 서버로 전송되지 않습니다.
+          </p>
         </div>
-      </div>
 
-      <div className="form-section-body">
-        <div
-          onDragOver={(e) => {
-            e.preventDefault()
-            setDragging(true)
-          }}
-          onDragLeave={() => setDragging(false)}
-          onDrop={(e) => {
-            e.preventDefault()
-            setDragging(false)
-            const file = e.dataTransfer.files?.[0]
-            if (file) handleFile(file)
-          }}
-          onClick={() => !busy && inputRef.current?.click()}
-          className={`rounded-[6px] border-2 border-dashed px-6 py-10 flex flex-col items-center gap-2 transition-colors
-          ${busy ? 'cursor-wait bg-surface-sunken border-line' : 'cursor-pointer'}
-          ${dragging ? 'border-brand-500 bg-brand-50' : 'border-line-strong hover:border-brand-400 hover:bg-brand-50/40'}`}
-        >
-          {busy ? (
-            <>
-              <svg className="w-6 h-6 text-brand-500 animate-spin" fill="none" viewBox="0 0 24 24">
-                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" />
-                <path className="opacity-80" fill="currentColor" d="M4 12a8 8 0 018-8v3a5 5 0 00-5 5H4z" />
-              </svg>
-              <span className="text-sm text-ink-700 font-medium">PDF를 분석하는 중입니다...</span>
-            </>
-          ) : (
-            <>
-              <svg className="w-7 h-7 text-ink-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.6}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M12 16V4m0 0L8 8m4-4l4 4M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2" />
-              </svg>
-              <span className="text-sm text-ink-700 font-medium">PDF 파일을 끌어다 놓거나 클릭해서 선택하세요</span>
-              <span className="text-[11px] text-ink-400">스캔 이미지로만 이루어진 PDF는 텍스트를 추출할 수 없습니다</span>
-            </>
-          )}
+        <div className="w-full card p-3">
+          <div
+            onDragOver={(e) => {
+              e.preventDefault()
+              setDragging(true)
+            }}
+            onDragLeave={() => setDragging(false)}
+            onDrop={(e) => {
+              e.preventDefault()
+              setDragging(false)
+              const file = e.dataTransfer.files?.[0]
+              if (file) handleFile(file)
+            }}
+            onClick={() => !busy && inputRef.current?.click()}
+            className={`dropzone ${busy ? 'cursor-wait border-brand-200 bg-brand-50' : 'cursor-pointer'} ${
+              dragging ? 'dropzone-active' : ''
+            }`}
+          >
+            {busy ? (
+              <>
+                <svg className="w-[30px] h-[30px] animate-spin" viewBox="0 0 24 24" fill="none">
+                  <circle cx="12" cy="12" r="10" stroke="#EA580C" strokeWidth="3" opacity="0.22" />
+                  <path fill="#EA580C" d="M4 12a8 8 0 018-8v3a5 5 0 00-5 5H4z" />
+                </svg>
+                <span className="text-[15px] font-medium text-ink-900">PDF를 분석하는 중입니다...</span>
+                <span className="text-xs text-ink-500 font-num">{fileName}</span>
+              </>
+            ) : (
+              <>
+                <span className="w-[52px] h-[52px] rounded-[10px] bg-brand-100 flex items-center justify-center">
+                  <svg className="w-[26px] h-[26px]" fill="none" viewBox="0 0 24 24" stroke="#EA580C" strokeWidth={1.7}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 16V4m0 0L8 8m4-4l4 4M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2" />
+                  </svg>
+                </span>
+                <span className="flex flex-col items-center gap-1.5">
+                  <span className="text-[15px] font-medium text-ink-900">PDF 파일을 끌어다 놓으세요</span>
+                  <span className="text-xs text-ink-500 font-light">
+                    스캔 이미지로만 이루어진 PDF는 텍스트를 추출할 수 없습니다
+                  </span>
+                </span>
+                <span className="btn-primary mt-1.5">
+                  파일 선택
+                  <svg className="w-[15px] h-[15px]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M13 7l5 5-5 5M6 12h12" />
+                  </svg>
+                </span>
+              </>
+            )}
+          </div>
         </div>
 
         <input
@@ -91,17 +107,27 @@ export default function RfpUploader({ onAnalyzed }: Props) {
           onChange={(e) => {
             const file = e.target.files?.[0]
             if (file) handleFile(file)
-            // 같은 파일을 연속으로 다시 선택해도 onChange가 발생하도록 초기화한다.
             e.target.value = ''
           }}
         />
 
-        {error && (
-          <div className="mt-3 flex items-start gap-2 text-xs text-accent-red bg-red-50 border border-red-200 rounded-[4px] px-3 py-2">
+        {error ? (
+          <div className="w-full flex items-start gap-2 text-xs text-brand-600 bg-brand-50 border border-brand-200 rounded-[6px] px-3 py-2.5">
             <svg className="w-4 h-4 shrink-0 mt-px" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v4m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
             </svg>
             <span>{error}</span>
+          </div>
+        ) : (
+          <div className="flex items-center gap-[18px]">
+            {['요구사항 자동 추출', '평가 기준 배점 정리', '브라우저 내 처리'].map((t) => (
+              <span key={t} className="flex items-center gap-1.5 text-xs text-ink-500">
+                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="#EA580C" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                </svg>
+                {t}
+              </span>
+            ))}
           </div>
         )}
       </div>

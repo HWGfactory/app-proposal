@@ -13,9 +13,9 @@ interface Props {
 }
 
 const KIND_STYLE: Record<RequirementKind, string> = {
-  기능: 'bg-brand-50 text-brand-700',
-  비기능: 'bg-surface-sunken text-ink-700',
-  기타: 'bg-surface-sunken text-ink-500',
+  기능: 'badge-accent',
+  비기능: 'badge-neutral',
+  기타: 'badge-muted',
 }
 
 const META_LABEL: Array<{ key: keyof RfpMeta; label: string }> = [
@@ -73,12 +73,10 @@ export default function RfpAnalysis({ result, fileName, onReset, onUseForProposa
       {/* 사업 개요 */}
       <div className="form-section">
         <div className="form-section-header">
-          <span className="w-5 h-5 rounded-[3px] bg-brand-500 text-white text-[10px] font-bold flex items-center justify-center shrink-0">
-            2
-          </span>
+          <span className="fs-index">1</span>
           <div className="min-w-0">
-            <div className="font-semibold text-ink-900 text-[13px] leading-tight">사업 개요</div>
-            <div className="text-[11px] text-ink-400 mt-0.5">&ldquo;항목: 값&rdquo; 형태로 기재된 줄에서 찾은 정보입니다</div>
+            <div className="fs-title">사업 개요</div>
+            <div className="fs-desc">&ldquo;항목: 값&rdquo; 형태로 기재된 줄에서 찾은 정보입니다</div>
           </div>
         </div>
         <div className="form-section-body grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-3">
@@ -98,14 +96,12 @@ export default function RfpAnalysis({ result, fileName, onReset, onUseForProposa
       {/* 요구사항 */}
       <div className="form-section">
         <div className="form-section-header">
-          <span className="w-5 h-5 rounded-[3px] bg-brand-500 text-white text-[10px] font-bold flex items-center justify-center shrink-0">
-            3
-          </span>
+          <span className="fs-index">2</span>
           <div className="min-w-0">
-            <div className="font-semibold text-ink-900 text-[13px] leading-tight">
-              요구사항 <span className="text-ink-400 font-normal">({selectedIds.size}/{requirements.length}건 선택)</span>
+            <div className="fs-title">
+              요구사항 <span className="text-ink-400 font-normal tabular-nums">({selectedIds.size}/{requirements.length}건 선택)</span>
             </div>
-            <div className="text-[11px] text-ink-400 mt-0.5">
+            <div className="fs-desc">
               체크한 항목이 제안서의 &ldquo;포함 범위(In Scope)&rdquo;로 채워집니다. 누락·오탐이 있을 수 있으니 원문과 대조하세요
             </div>
           </div>
@@ -113,7 +109,7 @@ export default function RfpAnalysis({ result, fileName, onReset, onUseForProposa
             <button
               type="button"
               onClick={() => setSelectedIds(allSelected ? new Set() : new Set(requirements.map((r) => r.id)))}
-              className="ml-auto shrink-0 text-xs font-semibold text-brand-600 hover:text-brand-700"
+              className="ml-auto shrink-0 text-xs font-semibold text-brand-400 hover:text-brand-200"
             >
               {allSelected ? '전체 해제' : '전체 선택'}
             </button>
@@ -152,14 +148,12 @@ export default function RfpAnalysis({ result, fileName, onReset, onUseForProposa
       {/* 평가 기준 */}
       <div className="form-section">
         <div className="form-section-header">
-          <span className="w-5 h-5 rounded-[3px] bg-brand-500 text-white text-[10px] font-bold flex items-center justify-center shrink-0">
-            4
-          </span>
+          <span className="fs-index">3</span>
           <div className="min-w-0">
-            <div className="font-semibold text-ink-900 text-[13px] leading-tight">
-              평가 기준 <span className="text-ink-400 font-normal">({evaluations.length}건)</span>
+            <div className="fs-title">
+              평가 기준 <span className="text-ink-400 font-normal tabular-nums">({evaluations.length}건)</span>
             </div>
-            <div className="text-[11px] text-ink-400 mt-0.5">배점이 큰 항목일수록 제안서에서 비중 있게 다뤄야 합니다</div>
+            <div className="fs-desc">배점이 큰 항목일수록 제안서에서 비중 있게 다뤄야 합니다</div>
           </div>
         </div>
         <div className="form-section-body">
@@ -172,7 +166,7 @@ export default function RfpAnalysis({ result, fileName, onReset, onUseForProposa
                   <PageBadge page={item.page} />
                   <span className="text-sm text-ink-900 leading-relaxed flex-1">{item.label}</span>
                   {item.score !== null && (
-                    <span className="badge bg-brand-50 text-brand-700 shrink-0 tabular-nums">{item.score}점</span>
+                    <span className="badge badge-accent shrink-0 tabular-nums">{item.score}점</span>
                   )}
                 </li>
               ))}

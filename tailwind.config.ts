@@ -1,5 +1,7 @@
 import type { Config } from 'tailwindcss'
 
+// Orange · Black · White
+// ORANGE = 실행/진행, BLACK = 구조/텍스트, WHITE = 작업 면
 const config: Config = {
   content: [
     './src/pages/**/*.{js,ts,jsx,tsx,mdx}',
@@ -9,59 +11,57 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
-        // Now Platform(ServiceNow) 스타일 인터랙션 블루
+        // 실행 · 진행 (유일한 채색)
         brand: {
-          50: '#EAF3FB',
-          100: '#D2E7F6',
-          200: '#A6CEEE',
-          400: '#3591D6',
-          500: '#1B75BB',
-          600: '#145A94',
-          700: '#0F4573',
-          900: '#0A2E4D',
+          50: '#FFF9F4',
+          100: '#FFF1E7',
+          200: '#FDBA74',
+          400: '#F97316',
+          500: '#EA580C',
+          600: '#C2410C',
+          700: '#9A3412',
+          900: '#3D1E0C',
         },
-        // 좌측 내비게이션(다크) 팔레트
-        nav: {
-          900: '#14161F',
-          800: '#1B1E2A',
-          700: '#252938',
-          600: '#333849',
-          400: '#8A90A3',
-        },
-        // 상태 컬러
-        accent: {
-          green: '#2CA05A',
-          amber: '#B7791F',
-          red: '#C4314B',
-        },
-        // 본문 잉크/서피스
+        // 구조 · 텍스트
         ink: {
-          900: '#1A1E28',
-          700: '#333849',
-          500: '#5C6270',
-          400: '#8992A3',
-          300: '#B0B6C1',
+          900: '#111111',
+          800: '#1C1C1C',
+          700: '#3D3D3D',
+          600: '#5A5A5A',
+          500: '#767676',
+          400: '#A8A8A8',
+          300: '#D0D0D0',
         },
+        // 작업 면
         surface: {
-          DEFAULT: '#F4F5F7',
+          DEFAULT: '#FAFAFA',
           card: '#FFFFFF',
-          sunken: '#EBECF0',
+          sunken: '#F1F1F1',
+          dark: '#111111',
         },
         line: {
-          DEFAULT: '#DCDFE5',
-          strong: '#C4C9D1',
+          DEFAULT: '#E4E4E4',
+          strong: '#D0D0D0',
+          dark: '#2A2A2A',
+        },
+        // 상태 — 별도 색을 쓰지 않고 오렌지/그레이로 처리한다
+        accent: {
+          green: '#EA580C',
+          amber: '#EA580C',
+          red: '#EA580C',
         },
       },
       fontFamily: {
-        sans: ['NanumBarunGothic', 'Inter', 'system-ui', 'sans-serif'],
+        sans: ['"Noto Sans KR"', 'Inter', 'system-ui', 'sans-serif'],
+        num: ['Inter', 'system-ui', 'sans-serif'],
       },
       fontSize: {
         xs: ['0.75rem', { lineHeight: '1.1rem' }],
         sm: ['0.8125rem', { lineHeight: '1.25rem' }],
       },
       boxShadow: {
-        panel: '0 1px 2px 0 rgba(20, 22, 31, 0.06)',
-        popover: '0 4px 16px -2px rgba(20, 22, 31, 0.18)',
+        panel: 'none',
+        popover: '0 6px 20px -6px rgba(17, 17, 17, 0.18)',
       },
     },
   },

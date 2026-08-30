@@ -1,8 +1,9 @@
 'use client'
 
 import { useState } from 'react'
-import type { CompanyProfile, ProposalFormData, RfpSource } from '@/types/proposal'
+import type { BrandIdentity, CompanyProfile, ProposalFormData, RfpSource } from '@/types/proposal'
 import CompanyProfileSection from '@/components/CompanyProfileSection'
+import BrandLogoSection from '@/components/BrandLogoSection'
 import { defaultCompanyProfile } from '@/lib/companyProfile'
 
 interface Props {
@@ -34,10 +35,11 @@ export default function ProposerForm({ rfp, onSubmit, onBack, errorMsg }: Props)
   const [preparedBy, setPreparedBy] = useState('')
   const [preparedDate, setPreparedDate] = useState(today)
   const [companyProfile, setCompanyProfile] = useState<CompanyProfile>(defaultCompanyProfile())
+  const [brand, setBrand] = useState<BrandIdentity>({ logoDataUrl: null, colors: [], primary: null })
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
-    onSubmit({ companyName, preparedBy, preparedDate, companyProfile, rfp })
+    onSubmit({ companyName, preparedBy, preparedDate, brand, companyProfile, rfp })
   }
 
   return (
@@ -51,7 +53,7 @@ export default function ProposerForm({ rfp, onSubmit, onBack, errorMsg }: Props)
         <div>
           <div className="flex items-center gap-2">
             <h2 className="font-bold text-ink-900 text-base">제안사 정보</h2>
-            <span className="badge bg-brand-50 text-brand-600 border border-brand-100">
+            <span className="badge badge-accent tabular-nums">
               요구사항 {rfp.requirements.length}건
             </span>
           </div>
@@ -62,7 +64,7 @@ export default function ProposerForm({ rfp, onSubmit, onBack, errorMsg }: Props)
       </div>
 
       {errorMsg && (
-        <div className="mb-4 bg-red-50 border border-red-200 text-accent-red text-sm rounded-[4px] px-4 py-3 flex items-center gap-2">
+        <div className="mb-4 bg-brand-50 border border-brand-200 text-brand-600 text-sm rounded-[6px] px-4 py-3 flex items-center gap-2">
           <svg className="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z" />
           </svg>
@@ -74,12 +76,14 @@ export default function ProposerForm({ rfp, onSubmit, onBack, errorMsg }: Props)
         {/* RFP에서 자동으로 확정된 내용 (읽기 전용) */}
         <div className="form-section">
           <div className="form-section-header">
-            <svg className="w-4 h-4 text-accent-green shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-            </svg>
+            <span className="fs-index">
+              <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+              </svg>
+            </span>
             <div className="min-w-0">
-              <div className="font-semibold text-ink-900 text-[13px] leading-tight">RFP에서 자동 반영된 내용</div>
-              <div className="text-[11px] text-ink-400 mt-0.5">입력하지 않아도 제안서에 그대로 들어갑니다</div>
+              <div className="fs-title">RFP에서 자동 반영된 내용</div>
+              <div className="fs-desc">입력하지 않아도 제안서에 그대로 들어갑니다</div>
             </div>
           </div>
           <div className="form-section-body grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-3">
@@ -110,12 +114,10 @@ export default function ProposerForm({ rfp, onSubmit, onBack, errorMsg }: Props)
         {/* 제안사 기본 정보 */}
         <div className="form-section">
           <div className="form-section-header">
-            <span className="w-5 h-5 rounded-[3px] bg-brand-500 text-white text-[10px] font-bold flex items-center justify-center shrink-0">
-              1
-            </span>
+            <span className="fs-index">1</span>
             <div className="min-w-0">
-              <div className="font-semibold text-ink-900 text-[13px] leading-tight">제안사 기본 정보</div>
-              <div className="text-[11px] text-ink-400 mt-0.5">표지와 마무리 슬라이드에 반영됩니다</div>
+              <div className="fs-title">제안사 기본 정보</div>
+              <div className="fs-desc">표지와 마무리 슬라이드에 반영됩니다</div>
             </div>
           </div>
           <div className="form-section-body grid grid-cols-1 gap-4">
@@ -137,6 +139,8 @@ export default function ProposerForm({ rfp, onSubmit, onBack, errorMsg }: Props)
 
         {/* 회사 소개 · 핵심 역량 · 수행 실적 */}
         <CompanyProfileSection value={companyProfile} onChange={setCompanyProfile} />
+
+        <BrandLogoSection value={brand} onChange={setBrand} />
 
         <div className="flex items-center justify-end gap-2 pt-1">
           <button type="button" onClick={onBack} className="btn-secondary">

@@ -1,103 +1,83 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700&family=Inter:wght@400;500;600;700&display=swap');
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
-@font-face {
-    font-family: 'NanumBarunGothic';
-    src: url('//cdn.jsdelivr.net/font-nanumlight/1.0/NanumBarunGothicWeb.eot');
-    src: url('//cdn.jsdelivr.net/font-nanumlight/1.0/NanumBarunGothicWeb.eot?#iefix') format('embedded-opentype'),
-         url('//cdn.jsdelivr.net/font-nanumlight/1.0/NanumBarunGothicWeb.woff') format('woff'),
-         url('//cdn.jsdelivr.net/font-nanumlight/1.0/NanumBarunGothicWeb.ttf') format('truetype');
-    font-weight: 400;
-    font-display: swap;
-}
-@font-face {
-    font-family: 'NanumBarunGothic';
-    src: url('//cdn.jsdelivr.net/font-nanumlight/1.0/NanumBarunGothicWebBold.eot');
-    src: url('//cdn.jsdelivr.net/font-nanumlight/1.0/NanumBarunGothicWebBold.eot?#iefix') format('embedded-opentype'),
-         url('//cdn.jsdelivr.net/font-nanumlight/1.0/NanumBarunGothicWebBold.woff') format('woff'),
-         url('//cdn.jsdelivr.net/font-nanumlight/1.0/NanumBarunGothicWebBold.ttf') format('truetype');
-    font-weight: 700;
-    font-display: swap;
-}
-@font-face {
-    font-family: 'NanumBarunGothic';
-    src: url('//cdn.jsdelivr.net/font-nanumlight/1.0/NanumBarunGothicWebLight.eot');
-    src: url('//cdn.jsdelivr.net/font-nanumlight/1.0/NanumBarunGothicWebLight.eot?#iefix') format('embedded-opentype'),
-         url('//cdn.jsdelivr.net/font-nanumlight/1.0/NanumBarunGothicWebLight.woff') format('woff'),
-         url('//cdn.jsdelivr.net/font-nanumlight/1.0/NanumBarunGothicWebLight.ttf') format('truetype');
-    font-weight: 300;
-    font-display: swap;
-}
-
 @layer base {
   * { box-sizing: border-box; }
   body {
-    font-family: 'NanumBarunGothic', 'Inter', system-ui, sans-serif;
-    background: #F4F5F7;
-    color: #1A1E28;
+    font-family: 'Noto Sans KR', Inter, system-ui, sans-serif;
+    font-weight: 400;
+    background: #FAFAFA;
+    color: #111111;
     -webkit-font-smoothing: antialiased;
   }
+  /* 숫자·파일명·페이지 번호는 Inter로 */
+  .num, .tabular-nums { font-family: Inter, system-ui, sans-serif; }
+  :focus-visible { outline: 2px solid #EA580C; outline-offset: 2px; }
+  ::selection { background: #FFF1E7; }
 }
 
 @layer components {
-  /* ── 입력 필드: Now Platform 레코드 폼 스타일(각진 모서리, 얇은 보더) ── */
+  /* ── 입력 ── */
   .input-field {
-    @apply w-full px-3 py-2 rounded-[4px] border border-line bg-white text-sm text-ink-900
-           focus:outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-500
-           transition-colors duration-150 placeholder-ink-300;
+    @apply w-full px-3 py-2.5 rounded-[6px] border border-line-strong bg-surface-card text-sm text-ink-900
+           focus:outline-none focus:ring-[3px] focus:ring-brand-500/15 focus:border-brand-500
+           transition-colors duration-150 placeholder-ink-400;
   }
   .select-field {
-    @apply w-full px-3 py-2 rounded-[4px] border border-line bg-white text-sm text-ink-900
-           focus:outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-500
-           transition-colors duration-150 appearance-none cursor-pointer;
+    @apply input-field appearance-none cursor-pointer;
   }
   .textarea-field {
-    @apply w-full px-3 py-2 rounded-[4px] border border-line bg-white text-sm text-ink-900
-           focus:outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-500
-           transition-colors duration-150 placeholder-ink-300 resize-none;
+    @apply input-field resize-none leading-relaxed;
   }
 
-  /* ── 버튼: 각진 사각 버튼, 옅은 그림자 ── */
+  /* ── 버튼: 채움은 오렌지 하나뿐 ── */
   .btn-primary {
-    @apply bg-brand-500 hover:bg-brand-600 text-white font-semibold px-5 py-2.5 text-sm
-           rounded-[4px] transition-colors duration-150 flex items-center justify-center gap-2
-           disabled:opacity-50 disabled:cursor-not-allowed shadow-panel;
+    @apply bg-brand-500 hover:bg-brand-600 active:bg-brand-700 text-white font-medium px-[22px] py-2.5 text-sm
+           rounded-[8px] transition-colors duration-150 inline-flex items-center justify-center gap-2
+           disabled:opacity-45 disabled:cursor-not-allowed;
   }
   .btn-secondary {
-    @apply bg-white hover:bg-surface-sunken text-ink-700 font-medium px-5 py-2.5 text-sm
-           rounded-[4px] border border-line-strong transition-colors duration-150
-           flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed;
+    @apply bg-surface-card hover:bg-surface-sunken text-ink-700 font-medium px-5 py-2.5 text-sm
+           rounded-[8px] border border-line-strong transition-colors duration-150
+           inline-flex items-center justify-center gap-2 disabled:opacity-45 disabled:cursor-not-allowed;
   }
 
-  /* ── 카드/패널 ── */
+  /* ── 카드 / 섹션 (헤더 바가 블랙) ── */
   .card {
-    @apply bg-white rounded-[6px] border border-line shadow-panel;
+    @apply bg-surface-card rounded-[10px] border border-line;
   }
-
-  /* ── 레코드 폼 섹션(회색 헤더 바 + 본문) ── */
   .form-section {
-    @apply bg-white rounded-[6px] border border-line overflow-hidden shadow-panel;
+    @apply bg-surface-card rounded-[10px] border border-line overflow-hidden;
   }
   .form-section-header {
-    @apply flex items-center gap-2.5 px-4 py-2.5 bg-surface-sunken border-b border-line;
+    @apply flex items-start gap-2.5 px-[18px] py-3 bg-ink-900;
+  }
+  .form-section-header .fs-title { @apply text-[13px] font-medium text-white leading-tight; }
+  .form-section-header .fs-desc  { @apply text-[11px] text-ink-400 mt-0.5 font-light leading-relaxed; }
+  .form-section-header .fs-index {
+    @apply w-5 h-5 rounded-[5px] bg-brand-500 text-white text-[10px] font-bold
+           flex items-center justify-center shrink-0 font-num;
   }
   .form-section-body {
-    @apply p-4;
+    @apply p-[18px];
   }
 
   .section-label {
-    @apply text-[11px] font-bold text-ink-500 uppercase tracking-widest;
+    @apply text-[11px] font-bold text-ink-500 uppercase tracking-widest font-num;
   }
 
   /* ── 배지 ── */
-  .badge {
-    @apply inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-[3px];
-  }
+  .badge { @apply inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-[5px]; }
+  .badge-accent  { @apply bg-brand-100 text-brand-600; }
+  .badge-neutral { @apply bg-surface-sunken text-ink-700; }
+  .badge-muted   { @apply bg-surface-sunken text-ink-400; }
 
-  /* ── 브레드크럼 ── */
-  .crumb-sep {
-    @apply text-ink-300 text-xs select-none;
+  /* ── 드롭존 ── */
+  .dropzone {
+    @apply border-2 border-dashed border-line-strong rounded-[8px] bg-surface
+           flex flex-col items-center gap-3.5 px-8 py-14 transition-colors duration-150;
   }
+  .dropzone-active { @apply border-brand-200 bg-brand-50; }
 }
