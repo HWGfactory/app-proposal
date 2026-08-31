@@ -1,5 +1,8 @@
 # APP (Automatic Project Proposal)
 
+**[▶ Vercel 프로젝트](https://vercel.com/wongihong/app-proposal)** : 배포 현황 · 로그 · 환경 변수
+(Vercel 대시보드이므로 해당 계정 접근 권한이 필요합니다)
+
 > 제안요청서(RFP) PDF를 올리면 요구사항과 평가 기준을 분석하고, 제안의 축(Win Theme)을 골라
 > 제안 발표자료(.pptx)를 만들어 주는 도구.
 > 사업에 관한 내용은 전부 RFP에서 나오고, 사용자가 입력하는 것은 제안사(우리 회사) 정보뿐입니다.
