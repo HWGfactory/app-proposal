@@ -887,6 +887,69 @@ function scheduleNote(data: ProposalFormData, derived: boolean): string {
     : `※ 총 사업 기간 ${data.rfp.duration || '(제안요청서 미명시)'} 기준의 표준 일정이며, 착수 단계에서 협의하여 확정합니다.`
 }
 
+/**
+ * 기대 효과. 수치를 만들어내지 않는다. 제안요청서가 이미 숫자로 적어 둔 요구가
+ * 곧 이 사업의 정량 목표이므로, 그것을 모아 무엇으로 확인할지만 덧붙인다.
+ *
+ * AS-IS/TO-BE도 같은 정규식을 쓰지만 하는 일이 다르다. 그쪽은 목표가 무엇인지를
+ * 말하고, 이쪽은 그 목표를 어떻게 확인하는지를 말한다. 그래서 앞의 4건만이
+ * 아니라 확인된 전부를 싣는다.
+ *
+ * 숫자로 적힌 요구가 하나도 없으면 이 장은 통째로 빠진다.
+ */
+// 순서가 의미를 가른다. '자동처리율'은 부하가 아니라 정확도의 문제이므로
+// 정확도 규칙이 성능 규칙보다 먼저 와야 한다. 앞의 것부터 맞는 것을 쓴다.
+const VERIFY_RULES: { pattern: RegExp; how: string }[] = [
+  { pattern: /정확|정합|오류|품질|누락|처리율|달성률|성공률/, how: '표본 검증 결과서' },
+  { pattern: /응답|속도|성능|처리량|동시|접속|지연/, how: '부하 시험 결과서' },
+  { pattern: /가용|장애|복구|중단|무중단/, how: '운영 모니터링 기록' },
+  { pattern: /교육|인원|양성/, how: '교육 결과보고서' },
+  { pattern: /보안|취약점|암호/, how: '보안 점검 결과서' },
+]
+
+const EXPECTED_ROWS = 7
+
+function addExpectedEffect(pptx: Pptx, pal: BrandPalette, data: ProposalFormData, num: Numbering) {
+  const measured = data.rfp.requirements
+    .map((r) => ({ req: r, hit: r.requirement.match(MEASURABLE) }))
+    .filter((x) => x.hit)
+    .slice(0, EXPECTED_ROWS)
+  if (measured.length === 0) return
+
+  const { slide, top } = contentSlide(pptx, pal, {
+    title: '기대 효과', eyebrow: `${num.next()} · ${STEP.근거}`,
+    lead: `제안요청서가 숫자로 적은 요구 ${measured.length}건을, 무엇으로 확인할지까지 함께 적었습니다.`,
+  })
+
+  slide.addTable(
+    [
+      tableHeader(pal, ['정량 지표', '목표값', '확인 방법', '근거']),
+      ...measured.map(({ req, hit }) => {
+        const rule = VERIFY_RULES.find((v) => v.pattern.test(req.requirement))
+        return [
+          { text: req.requirement, options: { color: pal.ink } },
+          { text: (hit as RegExpMatchArray)[0].replace(/\s+/g, ''), options: { bold: true, color: pal.brand, align: 'center' as const } },
+          { text: rule?.how ?? '단계별 검수 확인서', options: { color: pal.ink, align: 'center' as const } },
+          { text: `${req.page}p`, options: { color: pal.gray, align: 'center' as const } },
+        ]
+      }),
+    ],
+    {
+      x: MARGIN, y: top, w: BODY_W,
+      colW: [BODY_W - 4.0, 1.1, 2.0, 0.9],
+      rowH: 0.38,
+      fontFace: FONT, fontSize: 9,
+      border: { type: 'solid', color: pal.line, pt: 1 },
+      valign: 'middle', autoPage: false,
+    }
+  )
+
+  slide.addText(
+    '※ 목표값은 제안요청서에 명시된 수치를 그대로 옮긴 것이며, 확인 방법은 해당 산출물로 검증합니다.',
+    { x: MARGIN, y: H - 0.6, w: BODY_W, h: 0.3, fontFace: FONT, fontSize: 9, color: pal.gray }
+  )
+}
+
 function addSchedule(pptx: Pptx, pal: BrandPalette, data: ProposalFormData, num: Numbering) {
   const angle = data.winTheme?.angle
   const { slide, top } = contentSlide(pptx, pal, {
@@ -1297,6 +1360,55 @@ function addTrackRecord(pptx: Pptx, pal: BrandPalette, data: ProposalFormData, n
 }
 
 /**
+ * 유지보수 및 지원. 이 장은 대부분 표준 서술이다. 기간이나 시한을 숫자로 적을
+ * 근거가 제안요청서에도 계약서에도 아직 없으므로, '계약에 정한 기간'이라고만
+ * 쓰고 각주에서 그 사실을 밝힌다. 지키지 못할 수를 적는 것보다 낫다.
+ */
+const SUPPORT_ITEMS = [
+  { item: '하자보수', scope: '검수 완료 이후', how: '결함 접수 창구를 하나로 두고, 등급별 대응 시한에 따라 조치한 뒤 결과를 보고합니다.' },
+  { item: '기술 지원', scope: '운영 담당자 문의', how: '유선과 원격 지원을 기본으로 하며, 현장 조치가 필요한 사안은 방문하여 대응합니다.' },
+  { item: '운영 이관', scope: '오픈 전후', how: '운영자 매뉴얼과 장애 대응 절차서를 인계하고, 인수인계 교육을 함께 실시합니다.' },
+  { item: '사용자 교육', scope: '사용자 및 운영자', how: '오픈 전 집합 교육을 실시하고, 요청 시 오픈 이후 보수 교육을 제공합니다.' },
+]
+
+function addSupport(pptx: Pptx, pal: BrandPalette, data: ProposalFormData, num: Numbering) {
+  const asked = /유지보수|하자|운영\s*이관|사후\s*관리/.test(
+    data.rfp.requirements.map((r) => r.requirement).join(' ')
+  )
+
+  const { slide, top } = contentSlide(pptx, pal, {
+    title: '유지보수 및 지원', eyebrow: `${num.next()} · ${STEP.실행}`,
+    lead: asked
+      ? '제안요청서가 요구한 사후 관리 범위를 지원 항목으로 나누어 적었습니다.'
+      : '오픈이 끝이 아니므로, 이후에 무엇을 계속하는지를 적었습니다.',
+  })
+
+  slide.addTable(
+    [
+      tableHeader(pal, ['지원 항목', '대상 시점', '수행 방식']),
+      ...SUPPORT_ITEMS.map((s) => [
+        { text: s.item, options: { bold: true, color: pal.ink } },
+        { text: s.scope, options: { align: 'center' as const, color: pal.gray } },
+        { text: s.how, options: { color: pal.ink } },
+      ]),
+    ],
+    {
+      x: MARGIN, y: top, w: BODY_W,
+      colW: [1.5, 1.4, BODY_W - 2.9],
+      rowH: 0.5,
+      fontFace: FONT, fontSize: 10,
+      border: { type: 'solid', color: pal.line, pt: 1 },
+      valign: 'middle', autoPage: false,
+    }
+  )
+
+  slide.addText(
+    '※ 하자보수 기간과 지원 범위는 계약 조건에 따르며, 대응 시한은 착수 단계에서 합의하여 확정합니다.',
+    { x: MARGIN, y: H - 0.85, w: BODY_W, h: 0.35, fontFace: FONT, fontSize: 10, color: pal.gray }
+  )
+}
+
+/**
  * 비용. 여기서는 금액을 만들어내지 않는다. 제안요청서가 밝힌 예산과, 평가표에
  * 가격 항목이 있다면 그 배점만이 사실이고, 나머지는 산출내역서의 몫이다.
  * 비목 구성을 적는 것은 무엇이 그 예산 안에 들어가는지를 밝히기 위해서지,
@@ -1468,11 +1580,16 @@ export async function generateProposalPptx(data: ProposalFormData): Promise<Buff
     ...((data.rfp.focus ?? []).some((f) => f.score > 0)
       ? [{ label: '평가 항목별 대응 상세', step: STEP.근거 }]
       : []),
+    // 숫자로 적힌 요구가 하나도 없으면 기대 효과 장이 만들어지지 않는다.
+    ...(data.rfp.requirements.some((r) => MEASURABLE.test(r.requirement))
+      ? [{ label: '기대 효과', step: STEP.근거 }]
+      : []),
     { label: '추진 일정', step: STEP.실행 },
     { label: '단계별 산출물', step: STEP.실행 },
     { label: '수행 조직 및 역할', step: STEP.실행 },
     { label: '품질보증 방안', step: STEP.실행 },
     { label: '리스크 관리 방안', step: STEP.실행 },
+    { label: '유지보수 및 지원', step: STEP.실행 },
     { label: '제안사 소개', step: STEP.실행 },
   ]
   if (data.companyProfile.trackRecords.some((r) => r.client.trim() || r.description.trim())) {
@@ -1506,6 +1623,7 @@ export async function generateProposalPptx(data: ProposalFormData): Promise<Buff
   addScoreChart(pptx, pal, data, num)
   addEvaluation(pptx, pal, data, num)
   addEvaluationDetail(pptx, pal, data, num)
+  addExpectedEffect(pptx, pal, data, num)
 
   addStepDivider(pptx, pal, STEP.실행, chaptersOf(STEP.실행))
   addSchedule(pptx, pal, data, num)
@@ -1514,6 +1632,7 @@ export async function generateProposalPptx(data: ProposalFormData): Promise<Buff
   addOrgChart(pptx, pal, data, num)
   addQuality(pptx, pal, data, num)
   addRiskMatrix(pptx, pal, data, num)
+  addSupport(pptx, pal, data, num)
   addCompany(pptx, pal, data, num)
   addTrackRecord(pptx, pal, data, num)
   addCost(pptx, pal, data, num)
