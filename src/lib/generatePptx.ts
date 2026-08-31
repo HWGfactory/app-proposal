@@ -17,7 +17,15 @@ const MARGIN = 0.55
 const BODY_W = W - MARGIN * 2
 
 
-const FONT = '맑은 고딕'
+/**
+ * 발표자료 본문 글꼴. 앱 화면(globals.css)과 같은 글꼴을 써서 문서와 도구의
+ * 인상을 맞춘다.
+ *
+ * pptxgenjs는 런마다 <a:latin> <a:ea> <a:cs>를 모두 적으므로 이 값 하나로
+ * 한글까지 적용된다. 다만 폰트를 파일에 심지는 않으므로, 여는 쪽 PC에
+ * 이 글꼴이 없으면 PowerPoint가 다른 글꼴로 대체한다.
+ */
+const FONT = 'Noto Sans KR'
 
 // 요구사항 유형별 표준 대응 문구. 아래 키워드 버킷에 걸리지 않을 때만 쓰인다.
 /**
@@ -1793,6 +1801,9 @@ export async function generateProposalPptx(data: ProposalFormData): Promise<Buff
   const pal = buildPalette(data.brand.primary ?? undefined)
 
   pptx.layout = 'LAYOUT_16x9'
+  // 슬라이드의 모든 글자는 자기 글꼴을 들고 있지만, 테마 기본값이 Calibri로
+  // 남아 있으면 나중에 추가되는 요소가 그리로 떨어진다. 기본값도 맞춰 둔다.
+  pptx.theme = { headFontFace: FONT, bodyFontFace: FONT }
   pptx.author = data.companyName
   pptx.company = data.companyName
   pptx.title = data.rfp.projectName || '제안서'
