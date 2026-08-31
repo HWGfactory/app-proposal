@@ -180,10 +180,6 @@ const STEP = {
   실행: '실행 역량',
 } as const
 
-/** Win Theme이 없을 때는 축에 기대는 문장을 만들지 않는다. */
-function lead(angle: string | undefined, withAngle: (a: string) => string): string | undefined {
-  return angle ? withAngle(angle) : undefined
-}
 
 /** 이 요구사항이 Win Theme의 근거로 인용된 것인가 */
 function isThemeProof(data: ProposalFormData, text: string): boolean {
@@ -419,18 +415,10 @@ function addCover(pptx: Pptx, pal: BrandPalette, data: ProposalFormData) {
   })
   slide.addShape('rect', { x: MARGIN, y: 3.05, w: 1.6, h: 0.04, fill: { color: pal.brandMid } })
 
-  // 표지는 주장을 처음 꺼내는 자리다. 이후 장들은 이 문장을 되풀이하지 않고 증명한다.
-  // 표지에는 축의 이름만 건다. 선언 문장 전문은 '제안 논지' 장에서 처음 펼치고
-  // 마무리에서 다시 받는다. 표지까지 세 번 같은 문장을 두면 되풀이가 된다.
-  const headline = data.winTheme?.headline.trim()
-  const angle = data.winTheme?.angle.trim()
-  if (headline && angle) {
-    slide.addText(`제안의 축 · ${angle}`, {
-      x: MARGIN, y: 3.3, w: BODY_W * 0.82, h: 0.4,
-      fontFace: FONT, fontSize: 13, color: pal.brandPale, lineSpacingMultiple: 1.3,
-    })
-  }
-
+  // 전략 축의 이름(예: '최고 배점 집중')은 우리가 제안을 세울 때 쓰는 내부
+  // 분류다. 발주기관에 내는 문서에 그대로 적으면 배점을 노린다는 말을 표지에
+  // 써 두는 셈이 되므로, 문서 어디에도 싣지 않는다. 확정된 선언 문장은
+  // '제안 논지' 장에서 펼치고 마무리에서 다시 받는다.
   const meta = [
     data.rfp.client ? `${data.rfp.client} 귀중` : null,
     `제안사 : ${data.companyName}`,
@@ -439,7 +427,7 @@ function addCover(pptx: Pptx, pal: BrandPalette, data: ProposalFormData) {
   ].filter(Boolean).join('\n')
 
   slide.addText(meta, {
-    x: MARGIN, y: headline ? 4.1 : 3.35, w: BODY_W, h: 1.1,
+    x: MARGIN, y: 3.35, w: BODY_W, h: 1.1,
     fontFace: FONT, fontSize: 11, color: pal.brandPale, lineSpacingMultiple: 1.35,
   })
 }
@@ -492,7 +480,6 @@ function addAgenda(
   const { slide, top } = contentSlide(pptx, pal, {
     title: '목차',
     eyebrow: 'AGENDA',
-    lead: lead(data.winTheme?.angle, (a) => `'${a}'을 세우는 순서로 구성했습니다.`),
   })
 
   // 목차에는 번호를 달지 않는다. 여기서 매기면 본문 eyebrow의 번호와 어긋난다.
@@ -540,7 +527,7 @@ function addWinTheme(pptx: Pptx, pal: BrandPalette, data: ProposalFormData) {
   const theme = data.winTheme
   if (!theme || !theme.headline.trim()) return
 
-  const { slide } = contentSlide(pptx, pal, { title: '제안 논지', eyebrow: `WIN THEME · ${theme.angle}` })
+  const { slide } = contentSlide(pptx, pal, { title: '제안 논지', eyebrow: 'WIN THEME' })
 
   // 주장
   slide.addShape('rect', { x: MARGIN, y: 1.3, w: 0.05, h: 1.15, fill: { color: pal.brand } })
@@ -557,9 +544,20 @@ function addWinTheme(pptx: Pptx, pal: BrandPalette, data: ProposalFormData) {
     data.rfp.background?.[0]?.text ?? theme.evidence.find((e) => e.kind === '배경')?.text
   const proof = theme.evidence.filter((e) => e.kind !== '배경').slice(0, 3)
 
+  // 판단 기준은 우리가 고른 축의 이름이 아니라 발주기관이 정한 평가 기준이다.
+  // 배점이 가장 큰 항목을 그대로 적으면 지어낼 것도, 내부 용어가 샐 일도 없다.
+  const topCriterion = [...data.rfp.evaluations]
+    .filter((e) => (e.score ?? 0) > 0)
+    .sort((a, b) => (b.score ?? 0) - (a.score ?? 0))[0]
+
   const steps: [string, string][] = [
-    [STEP.문제, background ?? `${data.rfp.client || '발주기관'}이 제안요청서에 밝힌 현황`],
-    [STEP.기준, `그래서 '${theme.angle}'이 이 사업의 성패를 가릅니다.`],
+    [STEP.문제, background ?? `${josa(data.rfp.client || '발주기관', '이', '가')} 제안요청서에 밝힌 현황`],
+    [
+      STEP.기준,
+      topCriterion
+        ? `제안요청서가 정한 평가 기준. 배점이 가장 큰 항목은 ${displayLabel(topCriterion.label)}(${topCriterion.score}점)입니다.`
+        : '제안요청서가 정한 평가 기준과 요구 조건',
+    ],
     [STEP.근거, proof.length > 0 ? proof.map((p) => quote(p.text)).join(' / ') : '제안요청서 요구사항 전건 대응'],
     [STEP.실행, `${data.companyName}의 수행 역량과 일정으로 이를 지킵니다.`],
   ]
@@ -580,10 +578,8 @@ function addWinTheme(pptx: Pptx, pal: BrandPalette, data: ProposalFormData) {
 }
 
 function addOverview(pptx: Pptx, pal: BrandPalette, data: ProposalFormData, num: Numbering) {
-  const angle = data.winTheme?.angle
   const { slide, top } = contentSlide(pptx, pal, {
     title: '사업 개요', eyebrow: `${num.next()} · ${STEP.문제}`,
-    lead: lead(angle, (a) => `제안요청서가 밝힌 조건입니다. 이 가운데 '${a}'이 성패를 가릅니다.`),
   })
   const { rfp } = data
 
@@ -643,7 +639,6 @@ function addAsIsToBe(pptx: Pptx, pal: BrandPalette, data: ProposalFormData, num:
   const { slide, top } = contentSlide(pptx, pal, {
     title: 'AS-IS / TO-BE',
     eyebrow: `${num.sub(1)} · ${STEP.문제}`,
-    lead: '왼쪽은 제안요청서가 밝힌 현재 상황이고, 오른쪽은 요구사항에 명시된 목표입니다.',
   })
 
   const colW = (BODY_W - 0.3) / 2
@@ -687,10 +682,8 @@ function addAsIsToBe(pptx: Pptx, pal: BrandPalette, data: ProposalFormData, num:
 }
 
 function addRequirementSummary(pptx: Pptx, pal: BrandPalette, data: ProposalFormData, num: Numbering) {
-  const angle = data.winTheme?.angle
   const { slide, top } = contentSlide(pptx, pal, {
     title: '요구사항 구성', eyebrow: `${num.next()} · ${STEP.문제}`,
-    lead: lead(angle, (a) => `요구사항을 유형별로 갈랐습니다. '${a}'과 직결되는 항목을 다음 장 앞머리에 둡니다.`),
   })
   const reqs = data.rfp.requirements
   const kinds: RequirementKind[] = ['기능', '비기능', '기타']
@@ -756,7 +749,6 @@ function addRequirementSummary(pptx: Pptx, pal: BrandPalette, data: ProposalForm
 const ROWS_PER_SLIDE = 4
 
 function addRequirementResponses(pptx: Pptx, pal: BrandPalette, data: ProposalFormData, num: Numbering) {
-  const angle = data.winTheme?.angle
   // 여러 장으로 나뉘어도 하나의 장이므로 번호는 한 번만 받는다.
   const eyebrow = `${num.next()} · ${STEP.근거}`
   if (data.rfp.requirements.length === 0) {
@@ -767,9 +759,8 @@ function addRequirementResponses(pptx: Pptx, pal: BrandPalette, data: ProposalFo
     return
   }
 
-  // Win Theme의 근거로 인용된 요구사항을 앞으로 당긴다. 축을 세우는 항목부터
-  // 읽히도록 순서 자체를 바꾸는 것이, 문장을 반복하는 것보다 강한 정렬이다.
-  const proofCount = data.rfp.requirements.filter((r) => isThemeProof(data, r.requirement)).length
+  // Win Theme의 근거로 인용된 요구사항을 앞으로 당긴다. 순서만 바꿀 뿐,
+  // 왜 그 순서인지는 문서에 적지 않는다. 읽는 쪽이 알아야 할 내용이 아니다.
   const reqs = [...data.rfp.requirements].sort(
     (a, b) => Number(isThemeProof(data, b.requirement)) - Number(isThemeProof(data, a.requirement))
   )
@@ -781,15 +772,7 @@ function addRequirementResponses(pptx: Pptx, pal: BrandPalette, data: ProposalFo
   for (let p = 0; p < pages; p++) {
     const chunk = reqs.slice(p * ROWS_PER_SLIDE, (p + 1) * ROWS_PER_SLIDE)
     const title = pages > 1 ? `요구사항 대응 방안 (${p + 1}/${pages})` : '요구사항 대응 방안'
-    const { slide, top } = contentSlide(pptx, pal, {
-      title,
-      eyebrow,
-      // 첫 장에서만 정렬 원칙을 밝힌다. 매 장 반복하면 다시 소음이 된다.
-      lead:
-        p === 0 && proofCount > 0
-          ? lead(angle, (a) => `'${a}'을 직접 뒷받침하는 ${proofCount}건을 앞에 두었습니다.`)
-          : undefined,
-    })
+    const { slide, top } = contentSlide(pptx, pal, { title, eyebrow })
 
     const rows = [
       tableHeader(pal, ['ID', '구분', 'RFP 요구사항', '대응 방안', '근거']),
@@ -849,7 +832,6 @@ function addScoreChart(pptx: Pptx, pal: BrandPalette, data: ProposalFormData, nu
   const { slide } = contentSlide(pptx, pal, {
     title: '배점 구성',
     eyebrow: `${num.next()} · ${STEP.근거}`,
-    lead: `배점이 어디에 몰려 있는지가 집필 분량을 정합니다.`,
   })
 
   // addChart는 newSlide 래퍼를 타지 않으므로 라벨에 stripTells를 직접 건다.
@@ -904,13 +886,11 @@ function addScoreChart(pptx: Pptx, pal: BrandPalette, data: ProposalFormData, nu
 }
 
 function addEvaluation(pptx: Pptx, pal: BrandPalette, data: ProposalFormData, num: Numbering) {
-  const angle = data.winTheme?.angle
   const evals = [...data.rfp.evaluations].sort((a, b) => (b.score ?? -1) - (a.score ?? -1))
   if (evals.length === 0) return
 
   const { slide, top } = contentSlide(pptx, pal, {
     title: '평가 기준별 대응', eyebrow: `${num.next()} · ${STEP.근거}`,
-    lead: lead(angle, (a) => `배점이 큰 항목부터, '${a}'을 근거로 대응합니다.`),
   })
   const total = evals.reduce((s, e) => s + (e.score ?? 0), 0)
 
@@ -950,7 +930,8 @@ function addEvaluation(pptx: Pptx, pal: BrandPalette, data: ProposalFormData, nu
   })
 
   if (total > 0) {
-    slide.addText(`확인된 배점 합계 ${total}점 · 배점이 높은 항목을 우선 순위로 제안 내용을 구성했습니다.`, {
+    // 배점 순으로 제안을 짰다는 사실은 우리 사정이지 발주기관에 할 말이 아니다.
+    slide.addText(`※ 제안요청서에서 확인한 평가 항목 ${evals.length}개, 배점 합계 ${total}점 기준입니다.`, {
       x: MARGIN, y: H - 0.85, w: BODY_W, h: 0.35,
       fontFace: FONT, fontSize: 10, color: pal.gray,
     })
@@ -1137,7 +1118,7 @@ function addExpectedEffect(pptx: Pptx, pal: BrandPalette, data: ProposalFormData
 
   const { slide, top } = contentSlide(pptx, pal, {
     title: '기대 효과', eyebrow: `${num.next()} · ${STEP.근거}`,
-    lead: `제안요청서가 숫자로 적은 요구 ${measured.length}건을, 무엇으로 확인할지까지 함께 적었습니다.`,
+    lead: `제안요청서가 수치로 제시한 목표 ${measured.length}건입니다.`,
   })
 
   slide.addTable(
@@ -1170,10 +1151,8 @@ function addExpectedEffect(pptx: Pptx, pal: BrandPalette, data: ProposalFormData
 }
 
 function addSchedule(pptx: Pptx, pal: BrandPalette, data: ProposalFormData, num: Numbering) {
-  const angle = data.winTheme?.angle
   const { slide, top } = contentSlide(pptx, pal, {
     title: '추진 일정', eyebrow: `${num.next()} · ${STEP.실행}`,
-    lead: lead(angle, (a) => `'${a}'을 언제 확인할 수 있는지를 단계마다 못 박았습니다.`),
   })
 
   const { derived, list: phases } = schedulePhases(data.rfp.duration)
@@ -1213,7 +1192,6 @@ function addGantt(pptx: Pptx, pal: BrandPalette, data: ProposalFormData, num: Nu
   const { weeks, list } = schedulePhases(data.rfp.duration)
   const { slide, top } = contentSlide(pptx, pal, {
     title: '단계별 일정 개요', eyebrow: `${num.sub(1)} · ${STEP.실행}`,
-    lead: '앞 장의 활동이 각각 몇 주를 쓰는지, 어디서 겹치는지를 봅니다.',
   })
 
   const labelW = 1.35
@@ -1289,7 +1267,6 @@ function addDeliverables(pptx: Pptx, pal: BrandPalette, data: ProposalFormData, 
   const { list } = schedulePhases(data.rfp.duration)
   const { slide, top } = contentSlide(pptx, pal, {
     title: '단계별 산출물', eyebrow: `${num.next()} · ${STEP.실행}`,
-    lead: '무엇을 받게 되는지가 정해져야 진척을 확인할 수 있습니다.',
   })
 
   slide.addTable(
@@ -1495,7 +1472,6 @@ function addRiskMatrix(pptx: Pptx, pal: BrandPalette, data: ProposalFormData, nu
 
   const { slide, top } = contentSlide(pptx, pal, {
     title: '리스크 관리 방안', eyebrow: `${num.next()} · ${STEP.실행}`,
-    lead: '드러난 위험만 관리할 수 있으므로, 먼저 적었습니다.',
   })
 
   // 영향도가 높은 항목을 위로 올린다. 표를 위에서부터 읽으면 그것이 곧 우선순위다.
@@ -1539,11 +1515,9 @@ function addRiskMatrix(pptx: Pptx, pal: BrandPalette, data: ProposalFormData, nu
 }
 
 function addCompany(pptx: Pptx, pal: BrandPalette, data: ProposalFormData, num: Numbering) {
-  const angle = data.winTheme?.angle
   const { intro, coreCompetencies } = data.companyProfile
   const { slide, top } = contentSlide(pptx, pal, {
     title: '제안사 소개', eyebrow: `${num.next()} · ${STEP.실행}`,
-    lead: lead(angle, (a) => `'${a}'을 실행해 본 조직인지, 아래 근거로 보여드립니다.`),
   })
 
   slide.addText(intro || `${josa(data.companyName, '은', '는')} 유사 사업 수행 경험을 바탕으로 본 사업을 수행합니다.`, {
@@ -1573,13 +1547,11 @@ function addCompany(pptx: Pptx, pal: BrandPalette, data: ProposalFormData, num: 
 }
 
 function addTrackRecord(pptx: Pptx, pal: BrandPalette, data: ProposalFormData, num: Numbering) {
-  const angle = data.winTheme?.angle
   const records = data.companyProfile.trackRecords.filter((r) => r.client.trim() || r.description.trim())
   if (records.length === 0) return
 
   const { slide, top } = contentSlide(pptx, pal, {
     title: '주요 수행 실적', eyebrow: `${num.next()} · ${STEP.실행}`,
-    lead: lead(angle, (a) => `같은 문제를 이미 다뤄 본 사업들입니다.`),
   })
 
   const rows = [
@@ -1614,15 +1586,8 @@ const SUPPORT_ITEMS = [
 ]
 
 function addSupport(pptx: Pptx, pal: BrandPalette, data: ProposalFormData, num: Numbering) {
-  const asked = /유지보수|하자|운영\s*이관|사후\s*관리/.test(
-    data.rfp.requirements.map((r) => r.requirement).join(' ')
-  )
-
   const { slide, top } = contentSlide(pptx, pal, {
     title: '유지보수 및 지원', eyebrow: `${num.next()} · ${STEP.실행}`,
-    lead: asked
-      ? '제안요청서가 요구한 사후 관리 범위를 지원 항목으로 나누어 적었습니다.'
-      : '오픈이 끝이 아니므로, 이후에 무엇을 계속하는지를 적었습니다.',
   })
 
   slide.addTable(
@@ -1672,7 +1637,6 @@ function addCost(pptx: Pptx, pal: BrandPalette, data: ProposalFormData, num: Num
 
   const { slide, top } = contentSlide(pptx, pal, {
     title: '비용 산정 개요', eyebrow: `${num.next()} · ${STEP.실행}`,
-    lead: '제안 금액은 산출내역서로 제출하며, 이 장은 그 구성만을 밝힙니다.',
   })
 
   // 숫자가 둘뿐이므로 차트가 아니라 수치 타일로 놓는다.
@@ -1730,10 +1694,8 @@ const NEXT_STEPS = [
 ]
 
 function addNextSteps(pptx: Pptx, pal: BrandPalette, data: ProposalFormData, num: Numbering) {
-  const angle = data.winTheme?.angle
   const { slide, top } = contentSlide(pptx, pal, {
     title: '다음 단계', eyebrow: `${num.next()} · ${STEP.실행}`,
-    lead: lead(angle, (a) => `'${a}'을 확인하실 수 있는 자리를 먼저 요청드립니다.`),
   })
 
   const cardW = (BODY_W - 0.28 * (NEXT_STEPS.length - 1)) / NEXT_STEPS.length
