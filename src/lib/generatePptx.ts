@@ -376,21 +376,40 @@ function addAgenda(
     lead: lead(data.winTheme?.angle, (a) => `'${a}'을 세우는 순서로 구성했습니다.`),
   })
 
-  let y = top
+  // 목차에는 번호를 달지 않는다. 여기서 매기면 본문 eyebrow의 번호와 어긋난다.
+  // 제안 논지는 번호가 없고, AS-IS와 평가 상세는 곁번호를 쓰므로 순번이 맞을
+  // 수가 없다. 어긋난 목차는 없는 목차보다 나쁘다. 순서는 배치가 이미 말한다.
+  const rows: { text: string; head: boolean }[] = []
   let lastStep = ''
-  sections.forEach((section, i) => {
-    if (section.step !== lastStep) {
-      slide.addText(section.step, {
-        x: MARGIN, y, w: 1.5, h: 0.26,
-        fontFace: FONT, fontSize: 10, bold: true, color: pal.brand,
-      })
-      lastStep = section.step
+  sections.forEach((s) => {
+    if (s.step !== lastStep) {
+      rows.push({ text: s.step, head: true })
+      lastStep = s.step
     }
-    slide.addText(`${String(i + 1).padStart(2, '0')}   ${section.label}`, {
-      x: MARGIN + 1.6, y: y - 0.02, w: BODY_W - 1.6, h: 0.3,
-      fontFace: FONT, fontSize: 13, color: pal.ink,
+    rows.push({ text: s.label, head: false })
+  })
+
+  // 장이 늘면 한 단에 담기지 않는다. 넘치면 잘리는 대신 두 단으로 나눈다.
+  const available = H - 0.5 - top
+  const single = Math.floor(available / 0.4)
+  const cols = rows.length <= single ? 1 : 2
+  const perCol = Math.ceil(rows.length / cols)
+  const pitch = Math.min(0.4, available / perCol)
+  const colW = cols === 1 ? BODY_W : (BODY_W - 0.5) / 2
+  const size = cols === 1 ? 13 : 11
+
+  rows.forEach((r, i) => {
+    const col = Math.floor(i / perCol)
+    const x = MARGIN + (colW + 0.5) * col
+    const y = top + pitch * (i - perCol * col)
+    slide.addText(r.text, {
+      x: r.head ? x : x + 0.28, y, w: colW - (r.head ? 0 : 0.28), h: pitch,
+      fontFace: FONT,
+      fontSize: r.head ? size - 2 : size,
+      bold: r.head,
+      color: r.head ? pal.brand : pal.ink,
+      valign: 'middle',
     })
-    y += 0.42
   })
 }
 
@@ -811,10 +830,26 @@ function addEvaluationDetail(pptx: Pptx, pal: BrandPalette, data: ProposalFormDa
  * 3개월짜리 제안서에 '19주 ~ 종료'가 적히기 때문이다.
  */
 const PHASE_PLAN = [
-  { phase: 'Phase 1', ratio: 1 / 6, tasks: '착수 보고, 요구사항 상세 분석 및 확정, 현행 진단' },
-  { phase: 'Phase 2', ratio: 2 / 6, tasks: '핵심 기능 개발, 외부 시스템 연동, 주간 진도 보고' },
-  { phase: 'Phase 3', ratio: 1 / 4, tasks: '통합 테스트, 성능·보안 점검, 데이터 이관 및 검증' },
-  { phase: 'Phase 4', ratio: 1 / 4, tasks: '사용자 교육, 오픈 및 안정화, 운영 이관, 완료 보고' },
+  {
+    phase: 'Phase 1', ratio: 1 / 6,
+    tasks: '착수 보고, 요구사항 상세 분석 및 확정, 현행 진단',
+    outputs: '착수보고서, 요구사항정의서, 현행분석서, WBS',
+  },
+  {
+    phase: 'Phase 2', ratio: 2 / 6,
+    tasks: '핵심 기능 개발, 외부 시스템 연동, 주간 진도 보고',
+    outputs: '화면설계서, 프로그램목록, 단위시험결과서, 주간보고서',
+  },
+  {
+    phase: 'Phase 3', ratio: 1 / 4,
+    tasks: '통합 테스트, 성능·보안 점검, 데이터 이관 및 검증',
+    outputs: '통합시험계획서 및 결과서, 점검결과서, 데이터이관결과서',
+  },
+  {
+    phase: 'Phase 4', ratio: 1 / 4,
+    tasks: '사용자 교육, 오픈 및 안정화, 운영 이관, 완료 보고',
+    outputs: '사용자매뉴얼, 교육결과보고서, 운영이관계획서, 완료보고서',
+  },
 ]
 
 const DURATION_PATTERN = /(\d+)(개월|주|일)/
@@ -950,6 +985,42 @@ function addGantt(pptx: Pptx, pal: BrandPalette, data: ProposalFormData, num: Nu
 }
 
 /**
+ * 산출물 명세. 일정과 같은 배열을 보므로 단계 이름과 기간이 저절로 맞는다.
+ * 검수의 단위가 곧 산출물이므로, 일정 바로 뒤에 둔다.
+ */
+function addDeliverables(pptx: Pptx, pal: BrandPalette, data: ProposalFormData, num: Numbering) {
+  const { list } = schedulePhases(data.rfp.duration)
+  const { slide, top } = contentSlide(pptx, pal, {
+    title: '단계별 산출물', eyebrow: `${num.next()} · ${STEP.실행}`,
+    lead: '무엇을 받게 되는지가 정해져야 진척을 확인할 수 있습니다.',
+  })
+
+  slide.addTable(
+    [
+      tableHeader(pal, ['단계', '기간', '주요 산출물']),
+      ...list.map((p) => [
+        { text: p.phase, options: { bold: true, color: pal.brand, align: 'center' as const } },
+        { text: p.period, options: { align: 'center' as const, color: pal.ink } },
+        { text: p.outputs, options: { color: pal.ink } },
+      ]),
+    ],
+    {
+      x: MARGIN, y: top, w: BODY_W,
+      colW: [1.3, 1.7, BODY_W - 3.0],
+      rowH: 0.5,
+      fontFace: FONT, fontSize: 10,
+      border: { type: 'solid', color: pal.line, pt: 1 },
+      valign: 'middle', autoPage: false,
+    }
+  )
+
+  slide.addText(
+    '※ 정보시스템 구축 사업의 표준 산출물이며, 제출 목록과 서식은 착수 단계에서 발주기관과 확정합니다.',
+    { x: MARGIN, y: H - 0.85, w: BODY_W, h: 0.35, fontFace: FONT, fontSize: 10, color: pal.gray }
+  )
+}
+
+/**
  * 수행 조직. 제안요청서에서 끌어올 수 있는 것은 없으므로 표준 편성을 그리고,
  * 그것이 표준이라는 사실을 각주에 적는다. 인원 수는 적지 않는다. 모르는 수를
  * 적어 넣는 것이 이 문서에서 가장 하기 쉬운 거짓말이다.
@@ -1020,6 +1091,74 @@ function addOrgChart(pptx: Pptx, pal: BrandPalette, data: ProposalFormData, num:
   slide.addText(
     '※ 표준 편성이며, 투입 인원과 등급은 착수 단계에서 확정하여 인력투입계획서로 제출합니다.',
     { x: MARGIN, y: H - 0.85, w: BODY_W, h: 0.35, fontFace: FONT, fontSize: 10, color: pal.gray }
+  )
+}
+
+/**
+ * 품질보증. 시험 항목을 새로 지어내지 않는다. 제안요청서의 비기능 요구사항이
+ * 곧 인수 기준이므로, 그것을 시험 항목으로 옮긴다고 밝히는 것이 이 장의 요지다.
+ *
+ * 활동 목록은 리스크와 같은 방식이다. 어디에나 있는 네 가지를 깔고,
+ * 제안요청서가 실제로 그 말을 꺼낸 시험만 더한다.
+ */
+const BASE_QA = [
+  { activity: '산출물 상호 검토', when: '단계 종료 전', how: '작성자가 아닌 검토자를 지정하고, 검토 의견과 조치 결과를 기록으로 남깁니다.' },
+  { activity: '단위 시험', when: '개발 단계', how: '기능 단위로 시험 항목을 작성하며, 결함은 조치 후 재시험으로 종결합니다.' },
+  { activity: '통합 시험', when: '시험 단계', how: '업무 흐름 단위 시나리오로 수행하고, 결함 등급별 조치 기한을 정해 관리합니다.' },
+  { activity: '사용자 인수 시험', when: '오픈 전', how: '발주기관 담당자가 직접 수행하며, 판정은 착수 시 합의한 검수 기준을 따릅니다.' },
+]
+
+const QA_TRIGGERS: { pattern: RegExp; item: (typeof BASE_QA)[number] }[] = [
+  {
+    pattern: /성능|응답|처리량|동시\s*접속|가용성|처리\s*속도/,
+    item: { activity: '성능 시험', when: '시험 단계', how: '제안요청서에 제시된 성능 수치를 목표값으로 두고, 부하 시험 결과를 보고서로 제출합니다.' },
+  },
+  {
+    pattern: /보안|개인정보|암호화|취약점/,
+    item: { activity: '보안 취약점 점검', when: '오픈 전', how: '진단 결과와 조치 내역을 함께 제출하고, 조치 완료 후 재점검으로 확인합니다.' },
+  },
+  {
+    pattern: /연계|연동|인터페이스|API/i,
+    item: { activity: '연계 시험', when: '통합 시험 전', how: '연계 대상별 단위 시험을 먼저 수행해, 통합 시험 단계의 지연 요인을 줄입니다.' },
+  },
+]
+
+function addQuality(pptx: Pptx, pal: BrandPalette, data: ProposalFormData, num: Numbering) {
+  const haystack = data.rfp.requirements.map((r) => r.requirement).join(' ')
+  const items = [...BASE_QA, ...QA_TRIGGERS.filter((t) => t.pattern.test(haystack)).map((t) => t.item)]
+  const nonFunctional = data.rfp.requirements.filter((r) => r.kind === '비기능').length
+
+  const { slide, top } = contentSlide(pptx, pal, {
+    title: '품질보증 방안', eyebrow: `${num.next()} · ${STEP.실행}`,
+    lead:
+      nonFunctional > 0
+        ? `제안요청서의 비기능 요구사항 ${nonFunctional}건을 그대로 시험 항목으로 옮깁니다.`
+        : '검수 기준을 시험 항목으로 먼저 옮겨 두고 개발을 시작합니다.',
+  })
+
+  slide.addTable(
+    [
+      tableHeader(pal, ['품질 활동', '시점', '수행 방식']),
+      ...items.map((q) => [
+        { text: q.activity, options: { bold: true, color: pal.ink } },
+        { text: q.when, options: { align: 'center' as const, color: pal.gray } },
+        { text: q.how, options: { color: pal.ink } },
+      ]),
+    ],
+    {
+      x: MARGIN, y: top, w: BODY_W,
+      colW: [1.6, 1.2, BODY_W - 2.8],
+      // 유발 항목이 전부 걸리면 머리행까지 8행이다.
+      rowH: 0.36,
+      fontFace: FONT, fontSize: 9,
+      border: { type: 'solid', color: pal.line, pt: 1 },
+      valign: 'middle', autoPage: false,
+    }
+  )
+
+  slide.addText(
+    '※ 결함 등급 기준과 인수 판정 기준은 착수 단계에서 발주기관과 합의하여 문서로 확정합니다.',
+    { x: MARGIN, y: H - 0.6, w: BODY_W, h: 0.3, fontFace: FONT, fontSize: 9, color: pal.gray }
   )
 }
 
@@ -1157,6 +1296,127 @@ function addTrackRecord(pptx: Pptx, pal: BrandPalette, data: ProposalFormData, n
   })
 }
 
+/**
+ * 비용. 여기서는 금액을 만들어내지 않는다. 제안요청서가 밝힌 예산과, 평가표에
+ * 가격 항목이 있다면 그 배점만이 사실이고, 나머지는 산출내역서의 몫이다.
+ * 비목 구성을 적는 것은 무엇이 그 예산 안에 들어가는지를 밝히기 위해서지,
+ * 배분 비율을 아는 척하기 위해서가 아니다.
+ *
+ * 예산이 미명시면 이 장은 통째로 빠진다.
+ */
+const COST_ITEMS = [
+  { item: '인건비', scope: '투입 인력의 등급별 노임단가 기준. 착수 시 제출하는 인력투입계획서와 일치시킵니다.' },
+  { item: '소프트웨어·하드웨어', scope: '도입이 필요한 상용 제품의 라이선스와 장비. 규격과 수량을 산출내역서에 명시합니다.' },
+  { item: '기타 경비', scope: '교육, 출장, 산출물 제작 등 사업 수행에 직접 소요되는 비용에 한정합니다.' },
+]
+
+function addCost(pptx: Pptx, pal: BrandPalette, data: ProposalFormData, num: Numbering) {
+  const budget = data.rfp.budget.trim()
+  if (!budget) return
+
+  const priceScore = data.rfp.evaluations.find((e) => /가격/.test(e.label) && (e.score ?? 0) > 0)
+
+  const { slide, top } = contentSlide(pptx, pal, {
+    title: '비용 산정 개요', eyebrow: `${num.next()} · ${STEP.실행}`,
+    lead: '제안 금액은 산출내역서로 제출하며, 이 장은 그 구성만을 밝힙니다.',
+  })
+
+  // 숫자가 둘뿐이므로 차트가 아니라 수치 타일로 놓는다.
+  const tiles = [
+    { label: '제안요청서 명시 사업 예산', value: budget },
+    ...(priceScore ? [{ label: '가격 평가 배점', value: `${priceScore.score}점` }] : []),
+  ]
+  const tileW = (BODY_W - 0.3 * (tiles.length - 1)) / tiles.length
+  tiles.forEach((t, i) => {
+    const x = MARGIN + (tileW + 0.3) * i
+    slide.addShape('rect', { x, y: top, w: tileW, h: 0.95, fill: { color: pal.band }, line: { color: pal.line, width: 1 } })
+    slide.addText(t.label, {
+      x: x + 0.18, y: top + 0.12, w: tileW - 0.36, h: 0.24,
+      fontFace: FONT, fontSize: 9, color: pal.gray,
+    })
+    slide.addText(t.value, {
+      x: x + 0.18, y: top + 0.38, w: tileW - 0.36, h: 0.45,
+      fontFace: FONT, fontSize: 16, bold: true, color: pal.brandDeep,
+    })
+  })
+
+  slide.addTable(
+    [
+      tableHeader(pal, ['비목', '포함 범위']),
+      ...COST_ITEMS.map((c) => [
+        { text: c.item, options: { bold: true, color: pal.ink, align: 'center' as const } },
+        { text: c.scope, options: { color: pal.ink } },
+      ]),
+    ],
+    {
+      x: MARGIN, y: top + 1.25, w: BODY_W,
+      colW: [1.9, BODY_W - 1.9],
+      rowH: 0.46,
+      fontFace: FONT, fontSize: 10,
+      border: { type: 'solid', color: pal.line, pt: 1 },
+      valign: 'middle', autoPage: false,
+    }
+  )
+
+  slide.addText(
+    '※ 비목별 금액은 입찰 시 제출하는 산출내역서에 따르며, 총액은 제안요청서가 정한 예산 범위를 넘지 않습니다.',
+    { x: MARGIN, y: H - 0.6, w: BODY_W, h: 0.3, fontFace: FONT, fontSize: 9, color: pal.gray }
+  )
+}
+
+/**
+ * 다음 단계. 제안서가 끝난 뒤 무엇이 이어지는지를 적는다. 날짜는 적지 않는다.
+ * 제안요청서에서 읽어 온 일정 필드가 없으므로, 지어내면 그 자리에서 틀린다.
+ */
+const NEXT_STEPS = [
+  { step: '제안 발표', ours: '제안 내용과 근거를 발표하고 질의에 답변합니다.' },
+  { step: '우선협상', ours: '평가 결과에 따른 협상 요청 사항을 신속히 검토합니다.' },
+  { step: '계약 체결', ours: '과업 범위와 검수 기준을 계약 문서로 확정합니다.' },
+  { step: '사업 착수', ours: '착수 보고와 함께 요구사항 상세 분석에 들어갑니다.' },
+]
+
+function addNextSteps(pptx: Pptx, pal: BrandPalette, data: ProposalFormData, num: Numbering) {
+  const angle = data.winTheme?.angle
+  const { slide, top } = contentSlide(pptx, pal, {
+    title: '다음 단계', eyebrow: `${num.next()} · ${STEP.실행}`,
+    lead: lead(angle, (a) => `'${a}'을 확인하실 수 있는 자리를 먼저 요청드립니다.`),
+  })
+
+  const cardW = (BODY_W - 0.28 * (NEXT_STEPS.length - 1)) / NEXT_STEPS.length
+  const cardY = top + 0.45
+  NEXT_STEPS.forEach((s, i) => {
+    const x = MARGIN + (cardW + 0.28) * i
+
+    // 진행 방향을 화살촉 대신 이어지는 가로선으로 표시한다.
+    if (i > 0) {
+      slide.addShape('rect', {
+        x: x - 0.28, y: cardY + 0.62, w: 0.28, h: 0.016, fill: { color: pal.line },
+      })
+    }
+    slide.addText(String(i + 1).padStart(2, '0'), {
+      x, y: cardY - 0.42, w: cardW, h: 0.34,
+      fontFace: FONT, fontSize: 15, bold: true, color: pal.brandMid,
+    })
+    slide.addText(
+      [
+        { text: s.step, options: { bold: true, fontSize: 13, color: pal.brandDeep, breakLine: true } },
+        { text: s.ours, options: { fontSize: 9, color: pal.gray } },
+      ],
+      {
+        x, y: cardY, w: cardW, h: 1.25,
+        shape: 'rect', fill: { color: pal.band }, line: { color: pal.line, width: 1 },
+        fontFace: FONT, align: 'center', valign: 'middle',
+      }
+    )
+  })
+
+  const contact = data.preparedBy || data.companyName
+  slide.addText(
+    `${data.rfp.projectName || '본 사업'}에 대한 문의는 ${josa(contact, '으로', '로')} 연락 주시기 바랍니다.`,
+    { x: MARGIN, y: H - 0.95, w: BODY_W, h: 0.35, fontFace: FONT, fontSize: 11, color: pal.ink }
+  )
+}
+
 function addClosing(pptx: Pptx, pal: BrandPalette, data: ProposalFormData) {
   const slide = newSlide(pptx)
   slide.background = { color: pal.brandDark }
@@ -1209,13 +1469,20 @@ export async function generateProposalPptx(data: ProposalFormData): Promise<Buff
       ? [{ label: '평가 항목별 대응 상세', step: STEP.근거 }]
       : []),
     { label: '추진 일정', step: STEP.실행 },
+    { label: '단계별 산출물', step: STEP.실행 },
     { label: '수행 조직 및 역할', step: STEP.실행 },
+    { label: '품질보증 방안', step: STEP.실행 },
     { label: '리스크 관리 방안', step: STEP.실행 },
     { label: '제안사 소개', step: STEP.실행 },
   ]
   if (data.companyProfile.trackRecords.some((r) => r.client.trim() || r.description.trim())) {
     agenda.push({ label: '주요 수행 실적', step: STEP.실행 })
   }
+  // 예산이 미명시면 비용 장이 만들어지지 않으므로 목차에서도 빠져야 한다.
+  if (data.rfp.budget.trim()) {
+    agenda.push({ label: '비용 산정 개요', step: STEP.실행 })
+  }
+  agenda.push({ label: '다음 단계', step: STEP.실행 })
 
   // 간지는 목차와 같은 배열에서 장 목록을 가져오므로 둘이 어긋나지 않는다.
   const chaptersOf = (step: string) => agenda.filter((a) => a.step === step).map((a) => a.label)
@@ -1243,10 +1510,14 @@ export async function generateProposalPptx(data: ProposalFormData): Promise<Buff
   addStepDivider(pptx, pal, STEP.실행, chaptersOf(STEP.실행))
   addSchedule(pptx, pal, data, num)
   addGantt(pptx, pal, data, num)
+  addDeliverables(pptx, pal, data, num)
   addOrgChart(pptx, pal, data, num)
+  addQuality(pptx, pal, data, num)
   addRiskMatrix(pptx, pal, data, num)
   addCompany(pptx, pal, data, num)
   addTrackRecord(pptx, pal, data, num)
+  addCost(pptx, pal, data, num)
+  addNextSteps(pptx, pal, data, num)
   addClosing(pptx, pal, data)
 
   return (await pptx.write({ outputType: 'nodebuffer' })) as Buffer
