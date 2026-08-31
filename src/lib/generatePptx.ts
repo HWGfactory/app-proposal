@@ -19,12 +19,96 @@ const BODY_W = W - MARGIN * 2
 
 const FONT = '맑은 고딕'
 
-// 요구사항 유형별 표준 대응 문구. 사용자가 대응 방안을 직접 쓰지 않으므로,
-// 최소한 유형에 맞는 서술이 들어가도록 한다 (발표 시 보완 전제).
+// 요구사항 유형별 표준 대응 문구. 아래 키워드 버킷에 걸리지 않을 때만 쓰인다.
 const STANDARD_RESPONSE: Record<RequirementKind, string> = {
   기능: '요구 기능을 표준 모듈로 구현하고, 상세 설계 단계에서 고객사 업무 절차에 맞춰 화면·데이터 구조를 확정합니다.',
   비기능: '성능·보안·가용성 목표를 설계 기준으로 반영하고, 통합 테스트 단계에서 정량 지표로 충족 여부를 검증합니다.',
   기타: '제안요청서에 명시된 조건을 계약 및 수행 계획에 반영하여 준수합니다.',
+}
+
+/**
+ * 받침 유무로 조사를 고른다. "가용성을" / "대시보드를" 처럼 갈리는 자리에 쓴다.
+ * 영문·숫자로 끝나면 받침이 있는 것으로 본다(CRM은 "씨알엠"으로 읽혀 을이 맞다).
+ */
+function josa(word: string, withBatchim: string, without: string): string {
+  const code = word.charCodeAt(word.length - 1)
+  const isHangul = code >= 0xac00 && code <= 0xd7a3
+  const hasBatchim = !isHangul || (code - 0xac00) % 28 !== 0
+  return word + (hasBatchim ? withBatchim : without)
+}
+
+/**
+ * 요구사항 문장에서 주제를 읽어 대응 문구를 고른다.
+ *
+ * 유형별 3종만 쓰면 24건이 세 문장의 반복이 되어, 표를 넘길수록 성의가 없어
+ * 보인다. 문장에 실제로 등장한 낱말을 집어 문구에 되돌려 넣어야 그 요구사항을
+ * 읽고 답한 것으로 읽힌다.
+ *
+ * 매칭은 공백을 지운 문자열에 대고 한다. PDF에서 뽑은 문장은 "자동라우팅기능"
+ * 처럼 띄어쓰기가 뭉개져 있어 그대로는 걸리지 않는다.
+ *
+ * 지어낸 수치나 제품명은 넣지 않는다. 어떻게 확인할 것인가 수준의 서술만 쓴다.
+ */
+const RESPONSE_RULES: { pattern: RegExp; write: (term: string) => string }[] = [
+  {
+    pattern: /(인터페이스|연동|연계|이관|CRM|ERP)/,
+    write: (t) => `${t} 구간은 인터페이스 정의서를 먼저 확정한 뒤, 연계 테스트를 별도 일정으로 잡아 데이터 정합성을 검증합니다.`,
+  },
+  {
+    pattern: /(ISMS-P|ISMS|개인정보|정보통신망|암호화|접근권한|보안)/,
+    write: (t) => `${t} 요건을 설계 산출물의 검토 항목으로 고정하고, 통합 테스트 단계에서 취약점 점검과 함께 확인합니다.`,
+  },
+  {
+    pattern: /(동시접속자|동시접속|응답시간|가용성|무중단|자동처리율|처리율|성능)/,
+    write: (t) => `${josa(t, '을', '를')} 설계 기준값으로 삼고, 운영과 같은 부하 조건을 재현한 성능 시험으로 달성 여부를 계량 확인합니다.`,
+  },
+  {
+    pattern: /(대시보드|리포트|통계|집계|지표)/,
+    write: (t) => `집계 기준과 산출 주기를 현업과 먼저 합의한 뒤 ${josa(t, '을', '를')} 구성해, 같은 수치를 두고 해석이 갈리지 않게 합니다.`,
+  },
+  {
+    pattern: /(관리화면|승인이력|이력|조회|권한관리)/,
+    write: (t) => `${t} 처리 절차를 실제 업무 흐름대로 화면에 옮기고, 변경 내역을 남겨 감사 추적이 가능하게 합니다.`,
+  },
+  {
+    pattern: /(자동라우팅|라우팅|자동연결|자동화|자동생성|분류)/,
+    write: (t) => `${t} 규칙을 현업과 확정한 뒤 예외 처리 경로를 함께 설계해, 자동 처리에 실패해도 업무가 멈추지 않게 합니다.`,
+  },
+  {
+    // "사용자"만으로는 잡지 않는다. 화면과 무관한 문장에도 흔히 들어가는 말이라,
+    // 챗봇 엔진 요구사항이 화면 설계 문구를 받는 일이 생긴다.
+    pattern: /(사용자경험|사용자화면|화면|UI)/,
+    write: (t) => `${t} 설계는 시안 검토를 거쳐 확정하고, 사용자 검수에서 실제 업무 흐름대로 확인합니다.`,
+  },
+  {
+    pattern: /(교육|매뉴얼|가이드|인수인계)/,
+    write: (t) => `${t} 자료를 운영자용과 사용자용으로 나누어 작성하고, 오픈 전 실습 교육으로 숙련도를 확보합니다.`,
+  },
+  {
+    pattern: /(관계법령|법령|법규|표준|규정|지침)/,
+    write: (t) => `${t} 준수 항목을 점검표로 만들어, 단계별 산출물 검토 시 함께 확인합니다.`,
+  },
+  {
+    pattern: /(클라우드|인프라|서버|백업|이중화)/,
+    write: (t) => `${t} 구성은 용량 산정 결과를 근거로 확정하고, 장애 상황을 가정한 전환 시험으로 검증합니다.`,
+  },
+  {
+    pattern: /(검수|검증|테스트|품질)/,
+    write: (t) => `${t} 절차를 단계별 통과 기준과 함께 정의해, 기준에 미달하면 다음 단계로 넘어가지 않게 합니다.`,
+  },
+  {
+    pattern: /(마일스톤|산출물|일정|계획)/,
+    write: (t) => `${josa(t, '을', '를')} 주 단위로 관리하고, 마일스톤마다 고객 검토와 승인을 거쳐 진행합니다.`,
+  },
+]
+
+function responseFor(req: RfpRequirementItem): string {
+  const compact = req.requirement.replace(/\s/g, '')
+  for (const rule of RESPONSE_RULES) {
+    const hit = compact.match(rule.pattern)
+    if (hit) return rule.write(hit[1])
+  }
+  return STANDARD_RESPONSE[req.kind]
 }
 
 // 요구사항 유형 색도 브랜드 팔레트에서 파생한다.
@@ -470,7 +554,7 @@ function addRequirementResponses(pptx: Pptx, pal: BrandPalette, data: ProposalFo
           },
           { text: r.kind, options: { color: kindColor[r.kind], align: 'center' as const } },
           { text: r.requirement, options: { color: pal.ink, bold: proof } },
-          { text: STANDARD_RESPONSE[r.kind], options: { color: pal.gray } },
+          { text: responseFor(r), options: { color: pal.gray } },
           { text: `${r.page}p`, options: { color: pal.gray, align: 'center' as const } },
         ]
       }),
