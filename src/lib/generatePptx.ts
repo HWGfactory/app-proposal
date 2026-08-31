@@ -437,13 +437,6 @@ function addCover(pptx: Pptx, pal: BrandPalette, data: ProposalFormData) {
  * 다루는지 미리 알린다. 목차에서 만든 장 목록을 그대로 받아 쓰므로 두 곳이
  * 어긋날 수 없다.
  */
-const STEP_ROLE: Record<string, string> = {
-  [STEP.문제]: '발주기관이 무엇을 겪고 있는지 확인합니다.',
-  [STEP.기준]: '그래서 무엇으로 판단해야 하는지 밝힙니다.',
-  [STEP.근거]: '그 기준을 어떻게 충족하는지 증명합니다.',
-  [STEP.실행]: '약속을 지킬 수 있는 조직과 계획을 보입니다.',
-}
-
 function addStepDivider(pptx: Pptx, pal: BrandPalette, step: string, chapters: string[]) {
   // 장이 하나뿐이면 간지가 예고할 것이 그 장 하나다. 슬라이드 한 장을 써서
   // 다음 장의 제목만 말하게 되므로 만들지 않는다.
@@ -452,22 +445,37 @@ function addStepDivider(pptx: Pptx, pal: BrandPalette, step: string, chapters: s
   const slide = newSlide(pptx)
   slide.background = { color: pal.band }
 
-  slide.addShape('rect', { x: MARGIN, y: 1.9, w: 0.06, h: 1.5, fill: { color: pal.brand } })
+  const titleY = 0.95
+  slide.addShape('rect', { x: MARGIN, y: titleY, w: 0.06, h: 0.62, fill: { color: pal.brand } })
   slide.addText(step, {
-    x: MARGIN + 0.32, y: 1.85, w: BODY_W - 0.32, h: 0.6,
-    fontFace: FONT, fontSize: 30, bold: true, color: pal.brandDeep,
+    x: MARGIN + 0.32, y: titleY, w: BODY_W - 0.32, h: 0.62,
+    fontFace: FONT, fontSize: 30, bold: true, color: pal.brandDeep, valign: 'middle',
   })
-  slide.addText(STEP_ROLE[step] ?? '', {
-    x: MARGIN + 0.32, y: 2.5, w: BODY_W - 0.32, h: 0.32,
-    fontFace: FONT, fontSize: 12, color: pal.gray,
+
+  // 절이 맡은 역할을 설명하는 부제는 두지 않는다. 간지는 다음에 무엇이
+  // 오는지만 말하면 되고, 그 이상은 문서가 스스로를 해설하는 문장이 된다.
+
+  // 장 목록. 실행 역량처럼 열 장 넘게 붙는 절이 있어 높이를 고정하면 넘친
+  // 줄이 제목 위로 올라온다. 남은 높이를 세어 간격을 잡고, 한 단에 담기지
+  // 않으면 두 단으로 나눈다.
+  const listTop = titleY + 0.95
+  const available = H - 0.5 - listTop
+  const single = Math.floor(available / 0.34)
+  const cols = chapters.length <= single ? 1 : 2
+  const perCol = Math.ceil(chapters.length / cols)
+  const pitch = Math.min(0.34, available / perCol)
+  const colW = cols === 1 ? BODY_W - 0.42 : (BODY_W - 0.42 - 0.4) / 2
+
+  chapters.forEach((label, i) => {
+    const col = Math.floor(i / perCol)
+    slide.addText(label, {
+      x: MARGIN + 0.42 + (colW + 0.4) * col,
+      y: listTop + pitch * (i - perCol * col),
+      w: colW, h: pitch,
+      fontFace: FONT, fontSize: 12, color: pal.ink, valign: 'middle',
+      bullet: { code: '25AA' },
+    })
   })
-  slide.addText(
-    chapters.map((c) => ({ text: c, options: { breakLine: true, bullet: { code: '25AA' } } })),
-    {
-      x: MARGIN + 0.42, y: 2.95, w: BODY_W - 0.42, h: 1.1,
-      fontFace: FONT, fontSize: 12, color: pal.ink, lineSpacingMultiple: 1.4,
-    }
-  )
 }
 
 // 목차는 장 이름을 나열하지 않고, 각 장이 논지의 어느 단계인지를 보여준다.
