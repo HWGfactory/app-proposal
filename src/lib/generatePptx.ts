@@ -251,6 +251,53 @@ function contentSlide(
   return { slide, top: ruleY + 0.62 }
 }
 
+/**
+ * 배점표에서 뽑은 평가 항목 이름을 찍기 직전에 손본다.
+ *
+ * 배점표는 "평가 부문 | 세부 평가 항목 | 배점" 3열인데, PDF에서 표를 한 줄로
+ * 펼치면 셀 사이 공백이 사라져 "가격 평가입찰 가격의 적정성"이 된다. 분석
+ * 단계에서는 이 문자열이 그대로 필요하므로(중복 판정과 요구사항 매칭이 여기에
+ * 걸려 있다) analyze.ts는 건드리지 않고 표시할 때만 되돌린다.
+ *
+ * 되돌리지 못한 자리는 그대로 둔다. 잘못 끊는 것이 붙어 있는 것보다 나쁘다.
+ */
+
+// 부문 셀은 "가격 평가", "기술 능력"처럼 두 낱말이다. 한 낱말짜리 "위험관리"가
+// "위험 관리"로 잘리지 않도록 앞에 공백이 있는 경우만 경계로 본다.
+const SECTION_CELL = /^(\S+\s\S*(?:부문|평가|능력|이해도|관리))(?=[가-힣A-Za-z])/
+
+// 표 안에서만 붙어 나오는 낱말들. 일반 문장에는 적용하지 않는다.
+const LOANWORD = /(?<=[가-힣]{2})(아키텍처|플랫폼|인프라|솔루션|프레임워크|프로세스)/g
+
+function displayLabel(raw: string): string {
+  let s = raw.trim()
+
+  // 부문 셀과 세부 항목 셀의 경계
+  const cell = s.match(SECTION_CELL)
+  if (cell) s = `${cell[1]} · ${s.slice(cell[1].length)}`
+
+  return s
+    // '및'은 언제나 홀로 쓰는 접속어라 양쪽이 붙어 있으면 공백이 사라진 것이다
+    .replace(/([가-힣])및/g, '$1 및')
+    .replace(/및([가-힣])/g, '및 $1')
+    .replace(LOANWORD, ' $1')
+    // "방안의우수성"처럼 '의' 뒤 평가 용어가 붙은 경우
+    .replace(/([가-힣]{2,})의([가-힣]{2,}성)(?=$|\s)/g, '$1의 $2')
+    .replace(/\s{2,}/g, ' ')
+    .trim()
+}
+
+/**
+ * 제안요청서 인용문의 끝 쉼표를 떼어낸다.
+ *
+ * PDF의 한 줄이 문장 중간에서 끊긴 흔적이라, 표 칸 끝에 쉼표만 남아 오타로
+ * 읽힌다. 뒷문장은 대개 다음 요구사항으로 이미 들어와 있으므로 이어 붙이지
+ * 않는다. 붙이면 같은 문장이 두 행에 겹쳐 실린다.
+ */
+function quote(text: string): string {
+  return text.replace(/[,·]s*$/, '').trim()
+}
+
 function tableHeader(pal: BrandPalette, labels: string[]) {
   return labels.map((text) => ({
     text,
@@ -306,11 +353,14 @@ function addCover(pptx: Pptx, pal: BrandPalette, data: ProposalFormData) {
   slide.addShape('rect', { x: MARGIN, y: 3.05, w: 1.6, h: 0.04, fill: { color: pal.brandMid } })
 
   // 표지는 주장을 처음 꺼내는 자리다. 이후 장들은 이 문장을 되풀이하지 않고 증명한다.
+  // 표지에는 축의 이름만 건다. 선언 문장 전문은 '제안 논지' 장에서 처음 펼치고
+  // 마무리에서 다시 받는다. 표지까지 세 번 같은 문장을 두면 되풀이가 된다.
   const headline = data.winTheme?.headline.trim()
-  if (headline) {
-    slide.addText(headline, {
-      x: MARGIN, y: 3.3, w: BODY_W * 0.82, h: 0.7,
-      fontFace: FONT, fontSize: 12, color: pal.brandPale, italic: true, lineSpacingMultiple: 1.3,
+  const angle = data.winTheme?.angle.trim()
+  if (headline && angle) {
+    slide.addText(`제안의 축 · ${angle}`, {
+      x: MARGIN, y: 3.3, w: BODY_W * 0.82, h: 0.4,
+      fontFace: FONT, fontSize: 13, color: pal.brandPale, lineSpacingMultiple: 1.3,
     })
   }
 
@@ -340,7 +390,9 @@ const STEP_ROLE: Record<string, string> = {
 }
 
 function addStepDivider(pptx: Pptx, pal: BrandPalette, step: string, chapters: string[]) {
-  if (chapters.length === 0) return
+  // 장이 하나뿐이면 간지가 예고할 것이 그 장 하나다. 슬라이드 한 장을 써서
+  // 다음 장의 제목만 말하게 되므로 만들지 않는다.
+  if (chapters.length < 2) return
 
   const slide = newSlide(pptx)
   slide.background = { color: pal.band }
@@ -432,13 +484,16 @@ function addWinTheme(pptx: Pptx, pal: BrandPalette, data: ProposalFormData) {
   })
 
   // 이 주장을 어떤 순서로 증명하는지 — 뒤따르는 장들의 지도
-  const background = theme.evidence.find((e) => e.kind === '배경')
+  // 배경은 rfp.background를 먼저 본다. Win Theme의 근거는 브리프가 고른 PDF 줄
+  // 그대로라 문장 중간에서 끊겨 있고, rfp.background는 문장으로 복원된 것이다.
+  const background =
+    data.rfp.background?.[0]?.text ?? theme.evidence.find((e) => e.kind === '배경')?.text
   const proof = theme.evidence.filter((e) => e.kind !== '배경').slice(0, 3)
 
   const steps: [string, string][] = [
-    [STEP.문제, background ? background.text : `${data.rfp.client || '발주기관'}이 제안요청서에 밝힌 현황`],
+    [STEP.문제, background ?? `${data.rfp.client || '발주기관'}이 제안요청서에 밝힌 현황`],
     [STEP.기준, `그래서 '${theme.angle}'이 이 사업의 성패를 가릅니다.`],
-    [STEP.근거, proof.length > 0 ? proof.map((p) => p.text).join(' / ') : '제안요청서 요구사항 전건 대응'],
+    [STEP.근거, proof.length > 0 ? proof.map((p) => quote(p.text)).join(' / ') : '제안요청서 요구사항 전건 대응'],
     [STEP.실행, `${data.companyName}의 수행 역량과 일정으로 이를 지킵니다.`],
   ]
 
@@ -470,7 +525,8 @@ function addOverview(pptx: Pptx, pal: BrandPalette, data: ProposalFormData, num:
     ['발주기관', rfp.client || '-'],
     ['사업 예산', rfp.budget || '제안요청서 미명시'],
     ['사업 기간', rfp.duration || '제안요청서 미명시'],
-    ['근거 문서', rfp.fileName || '제안요청서'],
+    // 업로드한 파일 이름은 적지 않는다. 발주기관에 내는 문서에 제안사의 로컬
+    // 파일명이 찍히며, "RFP_예시_…" 같은 작업용 이름이 그대로 나간다.
     ['식별 요구사항', `${rfp.requirements.length}건`],
   ].map(([k, v]) => [
     { text: k, options: { bold: true, color: pal.brandDeep, fill: { color: pal.band } } },
@@ -512,7 +568,7 @@ function addAsIsToBe(pptx: Pptx, pal: BrandPalette, data: ProposalFormData, num:
   const colW = (BODY_W - 0.3) / 2
   const columns: [string, string, string, { text: string; page: number }[]][] = [
     ['AS-IS', '현재 상황', pal.gray, background.slice(0, 4).map((b) => ({ text: b.text, page: b.page }))],
-    ['TO-BE', '요구된 목표', pal.brand, targets.map((r) => ({ text: r.requirement, page: r.page }))],
+    ['TO-BE', '요구된 목표', pal.brand, targets.map((r) => ({ text: quote(r.requirement), page: r.page }))],
   ]
 
   columns.forEach(([label, caption, color, items], i) => {
@@ -558,29 +614,60 @@ function addRequirementSummary(pptx: Pptx, pal: BrandPalette, data: ProposalForm
   const reqs = data.rfp.requirements
   const kinds: RequirementKind[] = ['기능', '비기능', '기타']
   const kindColor = kindColors(pal)
-  const counts = kinds.map((k) => ({ kind: k, n: reqs.filter((r) => r.kind === k).length }))
+  const counts = kinds.map((k) => {
+    const of = reqs.filter((r) => r.kind === k)
+    const pages = Array.from(new Set(of.map((r) => r.page))).sort((a, b) => a - b)
+    return {
+      kind: k,
+      n: of.length,
+      // 세 유형의 건수가 우연히 같으면 숫자만으로는 오류처럼 읽힌다.
+      // 카드마다 다른 사실을 하나씩 붙여 서로 다른 값임을 보이게 한다.
+      where: pages.length === 0 ? '' : pages.length === 1 ? `${pages[0]}p` : `${pages[0]}p ~ ${pages[pages.length - 1]}p`,
+    }
+  })
 
   // 유형별 카드
   const cardW = (BODY_W - 0.4) / 3
   counts.forEach((c, i) => {
     const x = MARGIN + i * (cardW + 0.2)
     slide.addShape('rect', {
-      x, y: top, w: cardW, h: 1.3,
+      x, y: top, w: cardW, h: 1.45,
       fill: { color: pal.band }, line: { color: pal.line, width: 1 },
     })
     slide.addText(`${c.n}`, {
-      x, y: top + 0.15, w: cardW, h: 0.6,
+      x, y: top + 0.12, w: cardW, h: 0.6,
       fontFace: FONT, fontSize: 30, bold: true, color: kindColor[c.kind], align: 'center',
     })
     slide.addText(`${c.kind} 요구사항`, {
-      x, y: top + 0.78, w: cardW, h: 0.3,
+      x, y: top + 0.75, w: cardW, h: 0.3,
       fontFace: FONT, fontSize: 11, color: pal.gray, align: 'center',
+    })
+    slide.addText(c.where ? `제안요청서 ${c.where}` : '해당 없음', {
+      x, y: top + 1.05, w: cardW, h: 0.28,
+      fontFace: FONT, fontSize: 9, color: pal.gray, align: 'center',
     })
   })
 
+  // 구성 비율. 세 값이 같을 때 세 칸이 똑같이 나뉜 띠가 보이면, 같은 숫자가
+  // 우연이지 잘못 찍힌 것이 아님을 한눈에 알 수 있다.
+  const barY = top + 1.75
+  if (reqs.length > 0) {
+    let cursor = MARGIN
+    counts.forEach((c) => {
+      const w = (BODY_W * c.n) / reqs.length
+      if (w <= 0) return
+      slide.addShape('rect', { x: cursor, y: barY, w, h: 0.3, fill: { color: kindColor[c.kind] } })
+      slide.addText(`${Math.round((c.n / reqs.length) * 100)}%`, {
+        x: cursor, y: barY, w, h: 0.3,
+        fontFace: FONT, fontSize: 10, bold: true, color: pal.white, align: 'center', valign: 'middle',
+      })
+      cursor += w
+    })
+  }
+
   slide.addText(
     `제안요청서에서 총 ${reqs.length}건의 요구사항을 식별했습니다. 각 요구사항에 대한 대응 방안은 다음 장에서 근거 페이지와 함께 제시합니다.`,
-    { x: MARGIN, y: top + 1.6, w: BODY_W, h: 0.6, fontFace: FONT, fontSize: 12, color: pal.ink, lineSpacingMultiple: 1.4 }
+    { x: MARGIN, y: barY + 0.55, w: BODY_W, h: 0.6, fontFace: FONT, fontSize: 12, color: pal.ink, lineSpacingMultiple: 1.4 }
   )
 }
 
@@ -631,16 +718,22 @@ function addRequirementResponses(pptx: Pptx, pal: BrandPalette, data: ProposalFo
             options: { bold: true, color: proof ? pal.brand : pal.gray, align: 'center' as const },
           },
           { text: r.kind, options: { color: kindColor[r.kind], align: 'center' as const } },
-          { text: r.requirement, options: { color: pal.ink, bold: proof } },
+          { text: quote(r.requirement), options: { color: pal.ink, bold: proof } },
           { text: responseFor(r), options: { color: pal.gray } },
           { text: `${r.page}p`, options: { color: pal.gray, align: 'center' as const } },
         ]
       }),
     ]
 
+    // 행 높이를 정하지 않으면 표가 글자 높이로 붙어 슬라이드 아래가 통째로 빈다.
+    // 남은 높이를 나눠 갖되, rowH는 머리행에도 걸리므로 행 수에 1을 더해 나눈다.
+    // 마지막 장의 행이 적을 때 한 행이 지나치게 커지지 않도록 위아래로 묶어 둔다.
+    const rowH = Math.min(0.95, Math.max(0.5, (H - 0.45 - top) / (chunk.length + 1)))
+
     slide.addTable(rows, {
       x: MARGIN, y: top, w: BODY_W,
       colW: [0.6, 0.75, 3.5, 3.55, 0.5],
+      rowH,
       fontFace: FONT, fontSize: 9,
       border: { type: 'solid', color: pal.line, pt: 1 },
       valign: 'middle',
@@ -678,7 +771,7 @@ function addScoreChart(pptx: Pptx, pal: BrandPalette, data: ProposalFormData, nu
 
   // addChart는 newSlide 래퍼를 타지 않으므로 라벨에 stripTells를 직접 건다.
   const labels = scored.map((e) => {
-    const clean = stripTells(e.label)
+    const clean = stripTells(displayLabel(e.label))
     return clean.length > CHART_LABEL_MAX ? clean.slice(0, CHART_LABEL_MAX) : clean
   })
 
@@ -713,7 +806,7 @@ function addScoreChart(pptx: Pptx, pal: BrandPalette, data: ProposalFormData, nu
   )
 
   slide.addText(
-    `확인된 배점 ${total}점 가운데 ${stripTells(top.label)}이 ${top.score}점으로 가장 큽니다.`,
+    `확인된 배점 ${total}점 가운데 ${stripTells(displayLabel(top.label))}이 ${top.score}점으로 가장 큽니다.`,
     { x: MARGIN, y: H - 0.8, w: BODY_W, h: 0.32, fontFace: FONT, fontSize: 10, color: pal.gray }
   )
 }
@@ -729,18 +822,35 @@ function addEvaluation(pptx: Pptx, pal: BrandPalette, data: ProposalFormData, nu
   })
   const total = evals.reduce((s, e) => s + (e.score ?? 0), 0)
 
+  // 평가 항목마다 제안요청서에서 찾은 근거 요구사항이 몇 건인지를 적는다.
+  // 모든 행에 같은 문장을 넣으면 열 하나가 통째로 정보량이 없다.
+  const focus = data.rfp.focus ?? []
+  const evidenceOf = (label: string) => {
+    const hit = focus.find((f) => f.label === label)
+    if (!hit) return null
+    const pages = Array.from(new Set(hit.relatedRequirements.map((r) => r.page))).sort((a, b) => a - b)
+    return hit.relatedRequirements.length === 0
+      ? '제안요청서에 직접 근거 없음'
+      : `요구사항 ${hit.relatedRequirements.length}건 (${pages.map((p) => `${p}p`).join(', ')})`
+  }
+
+  // 근거를 셀 수 없으면(브리프 미전달) 열을 만들지 않는다.
+  const withEvidence = focus.length > 0
+
   const rows = [
-    tableHeader(pal, ['평가 항목', '배점', '대응 근거']),
+    tableHeader(pal, withEvidence ? ['평가 항목', '배점', '근거 요구사항'] : ['평가 항목', '배점']),
     ...evals.map((e) => [
-      { text: e.label, options: { bold: true, color: pal.brandDeep } },
+      { text: displayLabel(e.label), options: { bold: true, color: pal.brandDeep } },
       { text: e.score !== null ? `${e.score}점` : '-', options: { align: 'center' as const, color: pal.ink } },
-      { text: '본 제안서의 해당 장에서 근거와 함께 제시', options: { color: pal.gray } },
+      ...(withEvidence
+        ? [{ text: evidenceOf(e.label) ?? '제안요청서에 직접 근거 없음', options: { color: pal.gray } }]
+        : []),
     ]),
   ]
 
   slide.addTable(rows, {
     x: MARGIN, y: top, w: BODY_W,
-    colW: [4.0, 1.0, BODY_W - 5.0],
+    colW: withEvidence ? [4.6, 1.0, BODY_W - 5.6] : [BODY_W - 1.0, 1.0],
     fontFace: FONT, fontSize: 10,
     border: { type: 'solid', color: pal.line, pt: 1 },
     valign: 'middle',
@@ -764,25 +874,40 @@ function addEvaluation(pptx: Pptx, pal: BrandPalette, data: ProposalFormData, nu
 const EVALUATION_DETAIL_SLIDES = 4
 
 function addEvaluationDetail(pptx: Pptx, pal: BrandPalette, data: ProposalFormData, num: Numbering) {
-  const focus = (data.rfp.focus ?? []).filter((f) => f.score > 0)
+  // 근거 요구사항이 없는 항목은 상세 장을 만들지 않는다. 이 장이 할 일이
+  // 근거를 펼치는 것인데 펼칠 것이 없으면 배점 숫자만 남은 빈 장이 된다.
+  // 가격 평가처럼 기술 요구사항이 있을 수 없는 항목이 여기에 해당한다.
+  const focus = (data.rfp.focus ?? []).filter(
+    (f) => f.score > 0 && f.relatedRequirements.length > 0
+  )
   if (focus.length === 0) return
 
+  // 한 요구사항이 여러 평가 항목의 근거가 될 수 있어, 상세 장 사이에 같은
+  // 문장이 두 번 실린다. 배점이 높은 항목이 먼저 가져가고 뒤에서는 빼서,
+  // 각 장이 앞 장에 없던 근거만 말하게 한다.
+  const claimed = new Set<string>()
+
   focus.slice(0, EVALUATION_DETAIL_SLIDES).forEach((item, i) => {
+    const fresh = item.relatedRequirements.filter((r) => !claimed.has(r.id))
+    fresh.forEach((r) => claimed.add(r.id))
+    const sharedOnly = fresh.length === 0 && item.relatedRequirements.length > 0
+
     const { slide, top } = contentSlide(pptx, pal, {
-      title: item.label,
+      title: displayLabel(item.label),
       eyebrow: `${num.sub(i + 1)} · ${STEP.근거}`,
       lead: `전체 배점의 ${item.sharePct}%가 걸린 항목입니다.`,
     })
 
-    // 배점·비중·권장 분량을 한 줄로 세운다
+    // 비중은 타일로 세우지 않는다. 총점이 100점이면 배점과 같은 수가 되어
+    // 같은 값이 두 번 서는데, 그 사실은 바로 위 리드 문장이 이미 말했다.
     const cards: [string, string][] = [
       ['배점', `${item.score}점`],
-      ['비중', `${item.sharePct}%`],
       ...(item.recommendedPages !== null
         ? ([['권장 분량', `${item.recommendedPages}p`]] as [string, string][])
         : []),
+      ['근거 요구사항', `${fresh.length}건`],
     ]
-    const cardW = (BODY_W - 0.4) / 3
+    const cardW = (BODY_W - 0.2 * (cards.length - 1)) / cards.length
     cards.forEach(([label, value], c) => {
       const x = MARGIN + c * (cardW + 0.2)
       slide.addShape('rect', {
@@ -800,14 +925,14 @@ function addEvaluationDetail(pptx: Pptx, pal: BrandPalette, data: ProposalFormDa
     })
 
     const listTop = top + 1.25
-    if (item.relatedRequirements.length > 0) {
+    if (fresh.length > 0) {
       slide.addText('이 점수를 뒷받침하는 제안요청서 요구사항', {
         x: MARGIN, y: listTop, w: BODY_W, h: 0.26,
         fontFace: FONT, fontSize: 11, bold: true, color: pal.brandDeep,
       })
       slide.addText(
-        item.relatedRequirements.map((r) => ({
-          text: `${r.text} (${r.page}p)`,
+        fresh.map((r) => ({
+          text: `${quote(r.text)} (${r.page}p)`,
           options: { breakLine: true, bullet: { code: '25AA' } },
         })),
         {
@@ -816,10 +941,12 @@ function addEvaluationDetail(pptx: Pptx, pal: BrandPalette, data: ProposalFormDa
         }
       )
     } else {
-      slide.addText('이 항목과 직접 연결되는 요구사항 문장은 제안요청서에서 확인되지 않았습니다.', {
-        x: MARGIN, y: listTop, w: BODY_W, h: 0.4,
-        fontFace: FONT, fontSize: 11, color: pal.gray,
-      })
+      slide.addText(
+        sharedOnly
+          ? '이 항목의 근거 요구사항은 배점이 더 큰 앞 항목에서 함께 다룹니다.'
+          : '이 항목과 직접 연결되는 요구사항 문장은 제안요청서에서 확인되지 않았습니다.',
+        { x: MARGIN, y: listTop, w: BODY_W, h: 0.4, fontFace: FONT, fontSize: 11, color: pal.gray }
+      )
     }
   })
 }
@@ -883,8 +1010,8 @@ function schedulePhases(duration: string) {
 
 function scheduleNote(data: ProposalFormData, derived: boolean): string {
   return derived
-    ? `※ 제안요청서의 사업 기간 ${data.rfp.duration}을 4단계로 나눈 표준 일정이며, 착수 단계에서 협의하여 확정합니다.`
-    : `※ 총 사업 기간 ${data.rfp.duration || '(제안요청서 미명시)'} 기준의 표준 일정이며, 착수 단계에서 협의하여 확정합니다.`
+    ? `※ 제안요청서가 정한 사업 기간 ${data.rfp.duration}을 4단계로 나눈 표준 일정입니다. 단계 경계는 착수 보고에서 확정합니다.`
+    : `※ 사업 기간이 ${data.rfp.duration || '제안요청서에 없어'} 24주 기준 표준 일정으로 작성했습니다. 실제 기간에 맞춰 착수 시 조정합니다.`
 }
 
 /**
@@ -927,7 +1054,7 @@ function addExpectedEffect(pptx: Pptx, pal: BrandPalette, data: ProposalFormData
       ...measured.map(({ req, hit }) => {
         const rule = VERIFY_RULES.find((v) => v.pattern.test(req.requirement))
         return [
-          { text: req.requirement, options: { color: pal.ink } },
+          { text: quote(req.requirement), options: { color: pal.ink } },
           { text: (hit as RegExpMatchArray)[0].replace(/\s+/g, ''), options: { bold: true, color: pal.brand, align: 'center' as const } },
           { text: rule?.how ?? '단계별 검수 확인서', options: { color: pal.ink, align: 'center' as const } },
           { text: `${req.page}p`, options: { color: pal.gray, align: 'center' as const } },
@@ -945,7 +1072,7 @@ function addExpectedEffect(pptx: Pptx, pal: BrandPalette, data: ProposalFormData
   )
 
   slide.addText(
-    '※ 목표값은 제안요청서에 명시된 수치를 그대로 옮긴 것이며, 확인 방법은 해당 산출물로 검증합니다.',
+    '※ 목표값은 제안요청서에 명시된 수치를 그대로 옮겼습니다. 달성 여부는 확인 방법에 적은 산출물로 검증합니다.',
     { x: MARGIN, y: H - 0.6, w: BODY_W, h: 0.3, fontFace: FONT, fontSize: 9, color: pal.gray }
   )
 }
@@ -991,16 +1118,18 @@ function addSchedule(pptx: Pptx, pal: BrandPalette, data: ProposalFormData, num:
  * 말하는 대신, 어떤 로고 색이 들어와도 무너지지 않는 단색을 쓴다.
  */
 function addGantt(pptx: Pptx, pal: BrandPalette, data: ProposalFormData, num: Numbering) {
-  const { weeks, derived, list } = schedulePhases(data.rfp.duration)
-  const { slide } = contentSlide(pptx, pal, {
+  const { weeks, list } = schedulePhases(data.rfp.duration)
+  const { slide, top } = contentSlide(pptx, pal, {
     title: '단계별 일정 개요', eyebrow: `${num.sub(1)} · ${STEP.실행}`,
+    lead: '앞 장의 활동이 각각 몇 주를 쓰는지, 어디서 겹치는지를 봅니다.',
   })
 
   const labelW = 1.35
   const trackX = MARGIN + labelW
   const trackW = BODY_W - labelW
-  const topY = 1.62
-  const rowH = 0.72
+  // 주 눈금 라벨이 리드 문장 위로 올라가지 않도록 본문 시작선에서 내려 잡는다.
+  const topY = top + 0.4
+  const rowH = 0.65
   const barH = 0.26
   const atWeek = (w: number) => trackX + (trackW * w) / weeks
 
@@ -1013,11 +1142,11 @@ function addGantt(pptx: Pptx, pal: BrandPalette, data: ProposalFormData, num: Nu
   const gridBottom = topY + rowH * list.length
   ticks.forEach((w) => {
     slide.addShape('rect', {
-      x: atWeek(w), y: topY - 0.28, w: 0.008, h: gridBottom - topY + 0.28,
+      x: atWeek(w), y: topY - 0.06, w: 0.008, h: gridBottom - topY + 0.06,
       fill: { color: pal.line },
     })
     slide.addText(`${w}주`, {
-      x: atWeek(w) - 0.3, y: topY - 0.55, w: 0.6, h: 0.24,
+      x: atWeek(w) - 0.3, y: topY - 0.32, w: 0.6, h: 0.24,
       fontFace: FONT, fontSize: 9, color: pal.gray, align: 'center',
     })
   })
@@ -1036,14 +1165,27 @@ function addGantt(pptx: Pptx, pal: BrandPalette, data: ProposalFormData, num: Nu
       x: MARGIN, y: y + barH + 0.04, w: labelW - 0.12, h: 0.22,
       fontFace: FONT, fontSize: 9, color: pal.gray,
     })
-    slide.addText(p.tasks, {
-      x: trackX + 0.06, y: y + barH + 0.04, w: trackW - 0.12, h: 0.24,
-      fontFace: FONT, fontSize: 9, color: pal.gray,
+    // 앞 장의 표가 '무엇을'을 이미 적었으므로 여기서는 '얼마나'만 적는다.
+    slide.addText(`${p.to - p.from}주`, {
+      x: atWeek(p.to) + 0.06, y: y + 0.03, w: 0.7, h: barH,
+      fontFace: FONT, fontSize: 9, color: pal.brandDeep, bold: true, valign: 'middle',
     })
   })
 
-  slide.addText(scheduleNote(data, derived), {
-    x: MARGIN, y: H - 0.85, w: BODY_W, h: 0.35, fontFace: FONT, fontSize: 10, color: pal.gray,
+  // 보고 시점. PHASE_PLAN의 활동에 실제로 적힌 것만 표시한다.
+  const marks: [number, string][] = [
+    [0, '착수 보고'],
+    [weeks, '완료 보고'],
+  ]
+  marks.forEach(([w, label]) => {
+    slide.addShape('rect', {
+      x: atWeek(w) - 0.03, y: gridBottom + 0.06, w: 0.06, h: 0.14, fill: { color: pal.brandDeep },
+    })
+    slide.addText(label, {
+      x: atWeek(w) - (w === 0 ? 0.05 : 0.85), y: gridBottom + 0.24, w: 0.9, h: 0.22,
+      fontFace: FONT, fontSize: 9, color: pal.brandDeep,
+      align: w === 0 ? 'left' : 'right',
+    })
   })
 }
 
@@ -1078,7 +1220,7 @@ function addDeliverables(pptx: Pptx, pal: BrandPalette, data: ProposalFormData, 
   )
 
   slide.addText(
-    '※ 정보시스템 구축 사업의 표준 산출물이며, 제출 목록과 서식은 착수 단계에서 발주기관과 확정합니다.',
+    '※ 정보시스템 구축 사업의 표준 산출물 목록입니다. 서식과 제출 시점은 착수 보고 때 발주기관과 협의합니다.',
     { x: MARGIN, y: H - 0.85, w: BODY_W, h: 0.35, fontFace: FONT, fontSize: 10, color: pal.gray }
   )
 }
@@ -1152,7 +1294,7 @@ function addOrgChart(pptx: Pptx, pal: BrandPalette, data: ProposalFormData, num:
   })
 
   slide.addText(
-    '※ 표준 편성이며, 투입 인원과 등급은 착수 단계에서 확정하여 인력투입계획서로 제출합니다.',
+    '※ 표준 편성입니다. 투입 인원과 등급은 인력투입계획서로 별도 제출합니다.',
     { x: MARGIN, y: H - 0.85, w: BODY_W, h: 0.35, fontFace: FONT, fontSize: 10, color: pal.gray }
   )
 }
@@ -1220,7 +1362,7 @@ function addQuality(pptx: Pptx, pal: BrandPalette, data: ProposalFormData, num: 
   )
 
   slide.addText(
-    '※ 결함 등급 기준과 인수 판정 기준은 착수 단계에서 발주기관과 합의하여 문서로 확정합니다.',
+    '※ 결함 등급과 인수 판정 기준은 착수 시 문서로 합의한 뒤 시험 계획에 반영합니다.',
     { x: MARGIN, y: H - 0.6, w: BODY_W, h: 0.3, fontFace: FONT, fontSize: 9, color: pal.gray }
   )
 }
@@ -1299,7 +1441,7 @@ function addRiskMatrix(pptx: Pptx, pal: BrandPalette, data: ProposalFormData, nu
   )
 
   slide.addText(
-    '※ 발생 가능성과 영향도는 유사 사업 수행 경험에 근거한 초기 평가이며, 착수 단계에서 발주기관과 재평가합니다.',
+    '※ 발생 가능성과 영향도는 유사 사업 수행 경험에 근거한 초기 평가입니다. 착수 후 발주기관과 함께 다시 매깁니다.',
     { x: MARGIN, y: H - 0.6, w: BODY_W, h: 0.3, fontFace: FONT, fontSize: 9, color: pal.gray }
   )
 }
@@ -1319,13 +1461,21 @@ function addCompany(pptx: Pptx, pal: BrandPalette, data: ProposalFormData, num: 
 
   const items = coreCompetencies.filter((c) => c.text.trim().length > 0)
   if (items.length > 0) {
+    // 위치를 고정하면 소개 글 길이와 어긋난다. 본문 시작선에서 잡는다.
+    const headY = top + 1.05
     slide.addText('핵심 역량', {
-      x: MARGIN, y: 2.4, w: BODY_W, h: 0.3,
+      x: MARGIN, y: headY, w: BODY_W, h: 0.3,
       fontFace: FONT, fontSize: 13, bold: true, color: pal.brandDeep,
     })
     slide.addText(
       items.map((c) => ({ text: c.text, options: { breakLine: true, bullet: { code: '25AA' } } })),
-      { x: MARGIN + 0.1, y: 2.75, w: BODY_W - 0.2, h: 2.1, fontFace: FONT, fontSize: 11, color: pal.ink, lineSpacingMultiple: 1.5 }
+      {
+        x: MARGIN + 0.1, y: headY + 0.38, w: BODY_W - 0.2, h: H - 0.5 - (headY + 0.38),
+        fontFace: FONT, fontSize: 11, color: pal.ink, lineSpacingMultiple: 1.5,
+        // valign을 두지 않으면 항목이 적을 때 상자 한가운데로 내려앉아
+        // 제목과 첫 항목 사이가 통째로 빈다.
+        valign: 'top',
+      }
     )
   }
 }
@@ -1403,7 +1553,7 @@ function addSupport(pptx: Pptx, pal: BrandPalette, data: ProposalFormData, num: 
   )
 
   slide.addText(
-    '※ 하자보수 기간과 지원 범위는 계약 조건에 따르며, 대응 시한은 착수 단계에서 합의하여 확정합니다.',
+    '※ 하자보수 기간과 지원 범위는 계약 조건을 따릅니다. 대응 시한은 착수 시 합의하여 문서로 남깁니다.',
     { x: MARGIN, y: H - 0.85, w: BODY_W, h: 0.35, fontFace: FONT, fontSize: 10, color: pal.gray }
   )
 }

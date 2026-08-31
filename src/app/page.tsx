@@ -10,6 +10,7 @@ import DownloadScreen from '@/components/DownloadScreen'
 import RfpUploader from '@/components/RfpUploader'
 import RfpAnalysis from '@/components/RfpAnalysis'
 import type { RfpAnalysisResult } from '@/lib/rfp/analyze'
+import type { RfpLine } from '@/lib/rfp/extractText'
 import type { StrategyBrief } from '@/lib/rfp/strategy'
 import { buildWinThemes, type WinTheme } from '@/lib/rfp/winTheme'
 import WinThemeStep from '@/components/WinThemeStep'
@@ -27,6 +28,7 @@ export default function HomePage() {
   const [rfpResult, setRfpResult] = useState<RfpAnalysisResult | null>(null)
   const [rfpFileName, setRfpFileName] = useState('')
   const [rfpBrief, setRfpBrief] = useState<StrategyBrief | null>(null)
+  const [rfpLines, setRfpLines] = useState<RfpLine[]>([])
   const [rfpSource, setRfpSource] = useState<RfpSource | null>(null)
   const [winThemes, setWinThemes] = useState<WinTheme[]>([])
   const [winTheme, setWinTheme] = useState<WinThemeSelection | null>(null)
@@ -92,10 +94,11 @@ export default function HomePage() {
     <AppShell step={step} onReset={handleReset}>
       {step === 'upload' && (
         <RfpUploader
-          onAnalyzed={(analyzed, brief, name) => {
+          onAnalyzed={(analyzed, brief, name, lines) => {
             setRfpResult(analyzed)
             setRfpBrief(brief)
             setRfpFileName(name)
+            setRfpLines(lines)
             setStep('analysis')
           }}
         />
@@ -107,6 +110,7 @@ export default function HomePage() {
             result={rfpResult}
             fileName={rfpFileName}
             brief={rfpBrief}
+            lines={rfpLines}
             onReset={startUpload}
             onUseForProposal={(built) => {
               setRfpSource(built)

@@ -42,8 +42,10 @@ async function loadPdfjs() {
  * 줄 단위 텍스트 배열로 재구성한다. PDF에는 "문장" 개념이 없으므로,
  * 시각적으로 줄바꿈된 단위를 요구사항/평가기준 탐지의 기본 단위로 쓴다.
  */
-function groupItemsIntoLines(items: Array<{ str: string; transform: number[] }>): string[] {
-  type PositionedItem = { str: string; x: number; y: number }
+function groupItemsIntoLines(
+  items: Array<{ str: string; transform: number[]; width?: number; height?: number }>
+): string[] {
+  type PositionedItem = { str: string; x: number; y: number; w: number; h: number }
 
   const positioned: PositionedItem[] = items
     .filter((item) => item.str.trim().length > 0)
@@ -51,6 +53,8 @@ function groupItemsIntoLines(items: Array<{ str: string; transform: number[] }>)
       str: item.str,
       x: item.transform[4],
       y: item.transform[5],
+      w: item.width ?? 0,
+      h: item.height || Math.abs(item.transform[3]) || 10,
     }))
 
   const lines: PositionedItem[][] = []
@@ -67,15 +71,35 @@ function groupItemsIntoLines(items: Array<{ str: string; transform: number[] }>)
   lines.sort((a, b) => b[0].y - a[0].y)
 
   return lines
-    .map((line) =>
-      line
-        .sort((a, b) => a.x - b.x)
-        .map((item) => item.str)
-        .join('')
-        .replace(/\s+/g, ' ')
-        .trim()
-    )
+    .map((line) => joinLine(line.sort((a, b) => a.x - b.x)))
     .filter((text) => text.length > 0)
+}
+
+// 공백 하나의 너비는 글자 크기에 비례한다. 한글 본문에서 이보다 좁은 틈은
+// 자간이고, 넓은 틈은 지워진 공백이다.
+const SPACE_GAP_RATIO = 0.22
+
+/**
+ * 한 줄의 조각들을 이어붙인다.
+ *
+ * PDF는 공백을 글자로 담지 않고 다음 조각을 그만큼 오른쪽에 두는 일이 많다.
+ * 그래서 그냥 이어붙이면 "정확한답변을", "야간및휴일상담이"처럼 낱말이 붙어
+ * 나오고, 제안서에는 그것이 제안사의 오타로 읽힌다. 조각 사이의 가로 간격을
+ * 재서 공백이었던 자리를 되살린다.
+ */
+function joinLine(line: Array<{ str: string; x: number; w: number; h: number }>): string {
+  let out = ''
+  for (let i = 0; i < line.length; i++) {
+    const cur = line[i]
+    if (i > 0) {
+      const prev = line[i - 1]
+      const gap = cur.x - (prev.x + prev.w)
+      const needsSpace = gap > prev.h * SPACE_GAP_RATIO
+      if (needsSpace && !/\s$/.test(out) && !/^\s/.test(cur.str)) out += ' '
+    }
+    out += cur.str
+  }
+  return out.replace(/\s+/g, ' ').trim()
 }
 
 export async function extractPdfText(file: File): Promise<ExtractedRfp> {

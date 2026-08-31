@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import type { RequirementKind, RfpAnalysisResult, RfpMeta } from '@/lib/rfp/analyze'
 import { buildRfpSource } from '@/lib/rfp/prefill'
+import type { RfpLine } from '@/lib/rfp/extractText'
 import type { RfpSource } from '@/types/proposal'
 import type { StrategyBrief } from '@/lib/rfp/strategy'
 import StrategyBriefSection from '@/components/StrategyBriefSection'
@@ -11,6 +12,8 @@ interface Props {
   result: RfpAnalysisResult
   fileName: string
   brief: StrategyBrief
+  /** 배경 문단을 문장으로 복원하는 데 쓰는 원문 줄 */
+  lines: RfpLine[]
   onReset: () => void
   onUseForProposal: (rfp: RfpSource) => void
 }
@@ -35,7 +38,7 @@ function PageBadge({ page }: { page: number }) {
   )
 }
 
-export default function RfpAnalysis({ result, fileName, brief, onReset, onUseForProposal }: Props) {
+export default function RfpAnalysis({ result, fileName, brief, lines, onReset, onUseForProposal }: Props) {
   const { meta, requirements, evaluations } = result
   const totalScore = evaluations.reduce((sum, e) => sum + (e.score ?? 0), 0)
 
@@ -187,7 +190,7 @@ export default function RfpAnalysis({ result, fileName, brief, onReset, onUseFor
         </span>
         <button
           type="button"
-          onClick={() => onUseForProposal(buildRfpSource(result, selectedIds, fileName, brief))}
+          onClick={() => onUseForProposal(buildRfpSource(result, selectedIds, fileName, brief, lines))}
           className="btn-primary"
         >
           이 내용으로 제안서 작성
