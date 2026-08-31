@@ -258,6 +258,27 @@ function tableHeader(pal: BrandPalette, labels: string[]) {
   }))
 }
 
+/**
+ * 장 번호는 세는 것이지 적는 것이 아니다.
+ *
+ * 빠질 수 있는 장이 여럿이다. 평가 기준이 없으면 05가, 배점이 한 항목뿐이면
+ * 04가, 예산이 미명시면 비용 장이 통째로 빠진다. 번호를 함수마다 박아두면
+ * 그때마다 05 없는 06이 나온다. 그래서 각 장이 실제로 만들어지는 순간에
+ * 번호를 받아 간다. 조기 반환한 장은 번호를 쓰지 않으므로 자리도 남기지 않는다.
+ *
+ * sub()는 직전에 발급된 번호에 딸린 곁장을 만든다. AS-IS/TO-BE가 01-1인 것은
+ * 그것이 사업 개요와 같은 이야기의 연장이기 때문이지, 별개의 장이어서가 아니다.
+ */
+function numbering() {
+  let n = 0
+  return {
+    next: () => String(++n).padStart(2, '0'),
+    sub: (i: number) => `${String(n).padStart(2, '0')}-${i}`,
+  }
+}
+
+type Numbering = ReturnType<typeof numbering>
+
 // ── 슬라이드 ─────────────────────────────────────────────────────────────────
 
 function addCover(pptx: Pptx, pal: BrandPalette, data: ProposalFormData) {
@@ -417,10 +438,10 @@ function addWinTheme(pptx: Pptx, pal: BrandPalette, data: ProposalFormData) {
   })
 }
 
-function addOverview(pptx: Pptx, pal: BrandPalette, data: ProposalFormData) {
+function addOverview(pptx: Pptx, pal: BrandPalette, data: ProposalFormData, num: Numbering) {
   const angle = data.winTheme?.angle
   const { slide, top } = contentSlide(pptx, pal, {
-    title: '사업 개요', eyebrow: `01 · ${STEP.문제}`,
+    title: '사업 개요', eyebrow: `${num.next()} · ${STEP.문제}`,
     lead: lead(angle, (a) => `제안요청서가 밝힌 조건입니다. 이 가운데 '${a}'이 성패를 가릅니다.`),
   })
   const { rfp } = data
@@ -457,7 +478,7 @@ function addOverview(pptx: Pptx, pal: BrandPalette, data: ProposalFormData) {
 // "3초 이내", "99.9% 이상", "1,000명" 처럼 단위가 붙은 수치를 목표로 본다.
 const MEASURABLE = /\d[\d,.]*\s*(?:%|초|분|시간|일|건|명|배|회|개월)/
 
-function addAsIsToBe(pptx: Pptx, pal: BrandPalette, data: ProposalFormData) {
+function addAsIsToBe(pptx: Pptx, pal: BrandPalette, data: ProposalFormData, num: Numbering) {
   const background = data.rfp.background ?? []
   if (background.length === 0) return
 
@@ -465,7 +486,7 @@ function addAsIsToBe(pptx: Pptx, pal: BrandPalette, data: ProposalFormData) {
 
   const { slide, top } = contentSlide(pptx, pal, {
     title: 'AS-IS / TO-BE',
-    eyebrow: `01-1 · ${STEP.문제}`,
+    eyebrow: `${num.sub(1)} · ${STEP.문제}`,
     lead: '왼쪽은 제안요청서가 밝힌 현재 상황이고, 오른쪽은 요구사항에 명시된 목표입니다.',
   })
 
@@ -509,10 +530,10 @@ function addAsIsToBe(pptx: Pptx, pal: BrandPalette, data: ProposalFormData) {
   })
 }
 
-function addRequirementSummary(pptx: Pptx, pal: BrandPalette, data: ProposalFormData) {
+function addRequirementSummary(pptx: Pptx, pal: BrandPalette, data: ProposalFormData, num: Numbering) {
   const angle = data.winTheme?.angle
   const { slide, top } = contentSlide(pptx, pal, {
-    title: '요구사항 구성', eyebrow: `02 · ${STEP.문제}`,
+    title: '요구사항 구성', eyebrow: `${num.next()} · ${STEP.문제}`,
     lead: lead(angle, (a) => `요구사항을 유형별로 갈랐습니다. '${a}'과 직결되는 항목을 다음 장 앞머리에 둡니다.`),
   })
   const reqs = data.rfp.requirements
@@ -547,10 +568,12 @@ function addRequirementSummary(pptx: Pptx, pal: BrandPalette, data: ProposalForm
 /** 요구사항이 많으면 한 슬라이드에 다 들어가지 않으므로 나눠 담는다. */
 const ROWS_PER_SLIDE = 4
 
-function addRequirementResponses(pptx: Pptx, pal: BrandPalette, data: ProposalFormData) {
+function addRequirementResponses(pptx: Pptx, pal: BrandPalette, data: ProposalFormData, num: Numbering) {
   const angle = data.winTheme?.angle
+  // 여러 장으로 나뉘어도 하나의 장이므로 번호는 한 번만 받는다.
+  const eyebrow = `${num.next()} · ${STEP.근거}`
   if (data.rfp.requirements.length === 0) {
-    const { slide, top } = contentSlide(pptx, pal, { title: '요구사항 대응 방안', eyebrow: `03 · ${STEP.근거}` })
+    const { slide, top } = contentSlide(pptx, pal, { title: '요구사항 대응 방안', eyebrow })
     slide.addText('제안요청서에서 요구사항을 식별하지 못했습니다.', {
       x: MARGIN, y: top, w: BODY_W, h: 0.4, fontFace: FONT, fontSize: 12, color: pal.gray,
     })
@@ -571,7 +594,7 @@ function addRequirementResponses(pptx: Pptx, pal: BrandPalette, data: ProposalFo
     const title = pages > 1 ? `요구사항 대응 방안 (${p + 1}/${pages})` : '요구사항 대응 방안'
     const { slide, top } = contentSlide(pptx, pal, {
       title,
-      eyebrow: `03 · ${STEP.근거}`,
+      eyebrow,
       // 첫 장에서만 정렬 원칙을 밝힌다. 매 장 반복하면 다시 소음이 된다.
       lead:
         p === 0 && proofCount > 0
@@ -619,7 +642,7 @@ function addRequirementResponses(pptx: Pptx, pal: BrandPalette, data: ProposalFo
  */
 const CHART_LABEL_MAX = 22
 
-function addScoreChart(pptx: Pptx, pal: BrandPalette, data: ProposalFormData) {
+function addScoreChart(pptx: Pptx, pal: BrandPalette, data: ProposalFormData, num: Numbering) {
   const scored = data.rfp.evaluations
     .filter((e): e is typeof e & { score: number } => e.score !== null && e.score > 0)
     .sort((a, b) => a.score - b.score) // 가로 막대는 아래에서 위로 쌓여 큰 값이 위로 간다
@@ -630,7 +653,7 @@ function addScoreChart(pptx: Pptx, pal: BrandPalette, data: ProposalFormData) {
 
   const { slide } = contentSlide(pptx, pal, {
     title: '배점 구성',
-    eyebrow: `04 · ${STEP.근거}`,
+    eyebrow: `${num.next()} · ${STEP.근거}`,
     lead: `배점이 어디에 몰려 있는지가 집필 분량을 정합니다.`,
   })
 
@@ -676,13 +699,13 @@ function addScoreChart(pptx: Pptx, pal: BrandPalette, data: ProposalFormData) {
   )
 }
 
-function addEvaluation(pptx: Pptx, pal: BrandPalette, data: ProposalFormData) {
+function addEvaluation(pptx: Pptx, pal: BrandPalette, data: ProposalFormData, num: Numbering) {
   const angle = data.winTheme?.angle
   const evals = [...data.rfp.evaluations].sort((a, b) => (b.score ?? -1) - (a.score ?? -1))
   if (evals.length === 0) return
 
   const { slide, top } = contentSlide(pptx, pal, {
-    title: '평가 기준별 대응', eyebrow: `05 · ${STEP.근거}`,
+    title: '평가 기준별 대응', eyebrow: `${num.next()} · ${STEP.근거}`,
     lead: lead(angle, (a) => `배점이 큰 항목부터, '${a}'을 근거로 대응합니다.`),
   })
   const total = evals.reduce((s, e) => s + (e.score ?? 0), 0)
@@ -721,14 +744,14 @@ function addEvaluation(pptx: Pptx, pal: BrandPalette, data: ProposalFormData) {
  */
 const EVALUATION_DETAIL_SLIDES = 4
 
-function addEvaluationDetail(pptx: Pptx, pal: BrandPalette, data: ProposalFormData) {
+function addEvaluationDetail(pptx: Pptx, pal: BrandPalette, data: ProposalFormData, num: Numbering) {
   const focus = (data.rfp.focus ?? []).filter((f) => f.score > 0)
   if (focus.length === 0) return
 
   focus.slice(0, EVALUATION_DETAIL_SLIDES).forEach((item, i) => {
     const { slide, top } = contentSlide(pptx, pal, {
       title: item.label,
-      eyebrow: `05-${i + 1} · ${STEP.근거}`,
+      eyebrow: `${num.sub(i + 1)} · ${STEP.근거}`,
       lead: `전체 배점의 ${item.sharePct}%가 걸린 항목입니다.`,
     })
 
@@ -782,19 +805,61 @@ function addEvaluationDetail(pptx: Pptx, pal: BrandPalette, data: ProposalFormDa
   })
 }
 
-function addSchedule(pptx: Pptx, pal: BrandPalette, data: ProposalFormData) {
+/**
+ * 단계 구성은 표준안이되, 길이는 제안요청서의 사업 기간에서 끌어온다.
+ * 비율로 적어 두는 이유는 6개월 사업과 3개월 사업이 같은 표를 쓰면
+ * 3개월짜리 제안서에 '19주 ~ 종료'가 적히기 때문이다.
+ */
+const PHASE_PLAN = [
+  { phase: 'Phase 1', ratio: 1 / 6, tasks: '착수 보고, 요구사항 상세 분석 및 확정, 현행 진단' },
+  { phase: 'Phase 2', ratio: 2 / 6, tasks: '핵심 기능 개발, 외부 시스템 연동, 주간 진도 보고' },
+  { phase: 'Phase 3', ratio: 1 / 4, tasks: '통합 테스트, 성능·보안 점검, 데이터 이관 및 검증' },
+  { phase: 'Phase 4', ratio: 1 / 4, tasks: '사용자 교육, 오픈 및 안정화, 운영 이관, 완료 보고' },
+]
+
+const DURATION_PATTERN = /(\d+)(개월|주|일)/
+
+/** 사업 기간 문구에서 총 주 수를 읽는다. 읽어내지 못하면 표준 24주로 둔다. */
+function totalWeeks(duration: string): { weeks: number; derived: boolean } {
+  const m = duration.replace(/\s/g, '').match(DURATION_PATTERN)
+  if (!m) return { weeks: 24, derived: false }
+  const n = Number(m[1])
+  const weeks = m[2] === '개월' ? n * 4 : m[2] === '일' ? Math.round(n / 7) : n
+  // 한 단계도 1주가 안 되거나 5년이 넘는 값은 오독으로 보고 표준으로 되돌린다.
+  return weeks >= 6 && weeks <= 260 ? { weeks, derived: true } : { weeks: 24, derived: false }
+}
+
+/** 일정 표와 간트가 같은 배열을 보도록, 단계 경계를 한 곳에서만 계산한다. */
+function schedulePhases(duration: string) {
+  const { weeks, derived } = totalWeeks(duration)
+  let cursor = 0
+  const list = PHASE_PLAN.map((p, i) => {
+    const last = i === PHASE_PLAN.length - 1
+    const from = cursor
+    const to = last ? weeks : Math.min(weeks, Math.max(from + 1, Math.round(from + weeks * p.ratio)))
+    cursor = to
+    return {
+      ...p, from, to,
+      period: i === 0 ? `착수 ~ ${to}주` : last ? `${from + 1}주 ~ 종료` : `${from + 1} ~ ${to}주`,
+    }
+  })
+  return { weeks, derived, list }
+}
+
+function scheduleNote(data: ProposalFormData, derived: boolean): string {
+  return derived
+    ? `※ 제안요청서의 사업 기간 ${data.rfp.duration}을 4단계로 나눈 표준 일정이며, 착수 단계에서 협의하여 확정합니다.`
+    : `※ 총 사업 기간 ${data.rfp.duration || '(제안요청서 미명시)'} 기준의 표준 일정이며, 착수 단계에서 협의하여 확정합니다.`
+}
+
+function addSchedule(pptx: Pptx, pal: BrandPalette, data: ProposalFormData, num: Numbering) {
   const angle = data.winTheme?.angle
   const { slide, top } = contentSlide(pptx, pal, {
-    title: '추진 일정', eyebrow: `06 · ${STEP.실행}`,
+    title: '추진 일정', eyebrow: `${num.next()} · ${STEP.실행}`,
     lead: lead(angle, (a) => `'${a}'을 언제 확인할 수 있는지를 단계마다 못 박았습니다.`),
   })
 
-  const phases = [
-    { phase: 'Phase 1', period: '착수 ~ 4주', tasks: '착수 보고, 요구사항 상세 분석 및 확정, 현행 진단' },
-    { phase: 'Phase 2', period: '5 ~ 12주', tasks: '핵심 기능 개발, 외부 시스템 연동, 주간 진도 보고' },
-    { phase: 'Phase 3', period: '13 ~ 18주', tasks: '통합 테스트, 성능·보안 점검, 데이터 이관 및 검증' },
-    { phase: 'Phase 4', period: '19주 ~ 종료', tasks: '사용자 교육, 오픈 및 안정화, 운영 이관, 완료 보고' },
-  ]
+  const { derived, list: phases } = schedulePhases(data.rfp.duration)
 
   const rows = [
     tableHeader(pal, ['단계', '기간', '주요 활동']),
@@ -814,17 +879,234 @@ function addSchedule(pptx: Pptx, pal: BrandPalette, data: ProposalFormData) {
     valign: 'middle',
   })
 
+  slide.addText(scheduleNote(data, derived), {
+    x: MARGIN, y: H - 0.85, w: BODY_W, h: 0.35, fontFace: FONT, fontSize: 10, color: pal.gray,
+  })
+}
+
+/**
+ * 간트. 앞 장의 표가 '무엇을 하는가'라면 이 장은 '언제까지인가'만 말한다.
+ * 같은 schedulePhases()를 보므로 두 장이 어긋날 수 없다.
+ *
+ * 막대는 전부 한 색이다. 단계는 순서가 있는 값이지만 그 순서는 이미
+ * 위에서 아래로, 왼쪽에서 오른쪽으로 두 번 나타나 있다. 색으로 세 번째
+ * 말하는 대신, 어떤 로고 색이 들어와도 무너지지 않는 단색을 쓴다.
+ */
+function addGantt(pptx: Pptx, pal: BrandPalette, data: ProposalFormData, num: Numbering) {
+  const { weeks, derived, list } = schedulePhases(data.rfp.duration)
+  const { slide } = contentSlide(pptx, pal, {
+    title: '단계별 일정 개요', eyebrow: `${num.sub(1)} · ${STEP.실행}`,
+  })
+
+  const labelW = 1.35
+  const trackX = MARGIN + labelW
+  const trackW = BODY_W - labelW
+  const topY = 1.62
+  const rowH = 0.72
+  const barH = 0.26
+  const atWeek = (w: number) => trackX + (trackW * w) / weeks
+
+  // 눈금은 4주 간격을 기본으로 하되, 기간이 길면 간격을 벌려 8칸을 넘기지 않는다.
+  const tickStep = Math.max(4, Math.ceil(weeks / 8 / 4) * 4)
+  const ticks: number[] = []
+  for (let w = 0; w <= weeks; w += tickStep) ticks.push(w)
+  if (ticks[ticks.length - 1] !== weeks) ticks.push(weeks)
+
+  const gridBottom = topY + rowH * list.length
+  ticks.forEach((w) => {
+    slide.addShape('rect', {
+      x: atWeek(w), y: topY - 0.28, w: 0.008, h: gridBottom - topY + 0.28,
+      fill: { color: pal.line },
+    })
+    slide.addText(`${w}주`, {
+      x: atWeek(w) - 0.3, y: topY - 0.55, w: 0.6, h: 0.24,
+      fontFace: FONT, fontSize: 9, color: pal.gray, align: 'center',
+    })
+  })
+
+  list.forEach((p, i) => {
+    const y = topY + rowH * i
+    slide.addText(p.phase, {
+      x: MARGIN, y: y + 0.02, w: labelW - 0.12, h: barH,
+      fontFace: FONT, fontSize: 11, bold: true, color: pal.brandDeep, valign: 'middle',
+    })
+    slide.addShape('rect', {
+      x: atWeek(p.from), y: y + 0.03, w: Math.max(0.08, atWeek(p.to) - atWeek(p.from)), h: barH,
+      fill: { color: pal.brand },
+    })
+    slide.addText(p.period, {
+      x: MARGIN, y: y + barH + 0.04, w: labelW - 0.12, h: 0.22,
+      fontFace: FONT, fontSize: 9, color: pal.gray,
+    })
+    slide.addText(p.tasks, {
+      x: trackX + 0.06, y: y + barH + 0.04, w: trackW - 0.12, h: 0.24,
+      fontFace: FONT, fontSize: 9, color: pal.gray,
+    })
+  })
+
+  slide.addText(scheduleNote(data, derived), {
+    x: MARGIN, y: H - 0.85, w: BODY_W, h: 0.35, fontFace: FONT, fontSize: 10, color: pal.gray,
+  })
+}
+
+/**
+ * 수행 조직. 제안요청서에서 끌어올 수 있는 것은 없으므로 표준 편성을 그리고,
+ * 그것이 표준이라는 사실을 각주에 적는다. 인원 수는 적지 않는다. 모르는 수를
+ * 적어 넣는 것이 이 문서에서 가장 하기 쉬운 거짓말이다.
+ */
+const ORG_ROLES = [
+  { role: '기술 총괄', duty: '아키텍처 결정, 기술 리스크 판단' },
+  { role: '개발 파트', duty: '기능 구현, 외부 시스템 연동' },
+  { role: '품질·보안', duty: '테스트 설계, 보안 점검, 검수 대응' },
+  { role: '사업 관리', duty: '일정·산출물 관리, 보고 및 협의' },
+]
+
+function addOrgChart(pptx: Pptx, pal: BrandPalette, data: ProposalFormData, num: Numbering) {
+  const { slide } = contentSlide(pptx, pal, {
+    title: '수행 조직 및 역할', eyebrow: `${num.next()} · ${STEP.실행}`,
+    lead: '보고 창구를 하나로 두고, 판단이 필요한 자리마다 책임자를 붙였습니다.',
+  })
+
+  const pmW = 2.6
+  const pmX = MARGIN + (BODY_W - pmW) / 2
+  const pmY = 1.5
+  const pmH = 0.62
+
   slide.addText(
-    `※ 총 사업 기간 ${data.rfp.duration || '(제안요청서 미명시)'} 기준의 표준 일정이며, 착수 단계에서 협의하여 확정합니다.`,
+    [
+      { text: '사업 총괄 PM', options: { bold: true, fontSize: 13, breakLine: true } },
+      { text: data.companyName || '제안사', options: { fontSize: 10, color: pal.brandPale } },
+    ],
+    {
+      x: pmX, y: pmY, w: pmW, h: pmH,
+      shape: 'rect', fill: { color: pal.brandDeep }, color: pal.paper,
+      fontFace: FONT, align: 'center', valign: 'middle',
+    }
+  )
+
+  const boxW = (BODY_W - 0.3 * (ORG_ROLES.length - 1)) / ORG_ROLES.length
+  const boxY = 3.05
+  const boxH = 0.95
+  const centerOf = (i: number) => MARGIN + (boxW + 0.3) * i + boxW / 2
+
+  // PM에서 내려온 줄기와 가로대, 그리고 각 상자로 내려가는 가지.
+  const stemTop = pmY + pmH
+  const railY = 2.72
+  slide.addShape('rect', {
+    x: pmX + pmW / 2 - 0.008, y: stemTop, w: 0.016, h: railY - stemTop, fill: { color: pal.brandMid },
+  })
+  slide.addShape('rect', {
+    x: centerOf(0), y: railY, w: centerOf(ORG_ROLES.length - 1) - centerOf(0), h: 0.016,
+    fill: { color: pal.brandMid },
+  })
+
+  ORG_ROLES.forEach((r, i) => {
+    slide.addShape('rect', {
+      x: centerOf(i) - 0.008, y: railY, w: 0.016, h: boxY - railY, fill: { color: pal.brandMid },
+    })
+    slide.addText(
+      [
+        { text: r.role, options: { bold: true, fontSize: 12, color: pal.brandDeep, breakLine: true } },
+        { text: r.duty, options: { fontSize: 9, color: pal.gray } },
+      ],
+      {
+        x: MARGIN + (boxW + 0.3) * i, y: boxY, w: boxW, h: boxH,
+        shape: 'rect', fill: { color: pal.band }, line: { color: pal.line, width: 1 },
+        fontFace: FONT, align: 'center', valign: 'middle',
+      }
+    )
+  })
+
+  slide.addText(
+    '※ 표준 편성이며, 투입 인원과 등급은 착수 단계에서 확정하여 인력투입계획서로 제출합니다.',
     { x: MARGIN, y: H - 0.85, w: BODY_W, h: 0.35, fontFace: FONT, fontSize: 10, color: pal.gray }
   )
 }
 
-function addCompany(pptx: Pptx, pal: BrandPalette, data: ProposalFormData) {
+/**
+ * 리스크. 어느 사업에나 있는 네 가지를 기본으로 깔고, 제안요청서가 실제로
+ * 그 말을 꺼낸 경우에만 항목을 더한다. 연계 얘기가 없는 사업에 연계 실패
+ * 리스크를 적는 것은 남의 제안서를 베낀 티가 나는 자리다.
+ */
+const BASE_RISKS = [
+  { risk: '요구사항 변경', chance: '높음', impact: '중간', plan: '변경관리 절차와 영향도 평가 양식을 착수 시 합의하고, 주간 회의에서 승인 후 반영합니다.' },
+  { risk: '일정 지연', chance: '중간', impact: '높음', plan: '단계별 산출물을 검수 기준으로 삼아 지연을 조기에 드러내고, 예비 일정을 단계마다 배정합니다.' },
+  { risk: '핵심 인력 이탈', chance: '낮음', impact: '높음', plan: '역할별 백업 인력을 지정하고 산출물과 형상을 공유 저장소에 상시 관리합니다.' },
+  { risk: '검수 지연', chance: '중간', impact: '중간', plan: '검수 항목과 판정 기준을 착수 시 문서로 확정하고, 단계별 사전 검수를 운영합니다.' },
+]
+
+const RISK_TRIGGERS: { pattern: RegExp; risk: (typeof BASE_RISKS)[number] }[] = [
+  {
+    pattern: /연계|연동|인터페이스|API/i,
+    risk: { risk: '외부 시스템 연계 실패', chance: '중간', impact: '높음', plan: '연계 대상별 규격을 착수 단계에 확정하고, 통합 시험 전에 연계 단위 시험을 별도로 수행합니다.' },
+  },
+  {
+    pattern: /이관|마이그레이션|전환/,
+    risk: { risk: '데이터 이관 오류', chance: '중간', impact: '높음', plan: '이관 리허설을 통합 시험 전에 수행하고, 건수·정합성 검증 결과를 발주기관과 대조 확인합니다.' },
+  },
+  {
+    pattern: /개인정보|보안|암호화/,
+    risk: { risk: '보안 요건 미충족', chance: '낮음', impact: '높음', plan: '설계 단계에 보안 검토를 넣고, 오픈 전 취약점 점검과 조치 결과를 보고서로 제출합니다.' },
+  },
+]
+
+function addRiskMatrix(pptx: Pptx, pal: BrandPalette, data: ProposalFormData, num: Numbering) {
+  const haystack = data.rfp.requirements.map((r) => r.requirement).join(' ')
+  const risks = [
+    ...BASE_RISKS,
+    ...RISK_TRIGGERS.filter((t) => t.pattern.test(haystack)).map((t) => t.risk),
+  ]
+
+  const { slide, top } = contentSlide(pptx, pal, {
+    title: '리스크 관리 방안', eyebrow: `${num.next()} · ${STEP.실행}`,
+    lead: '드러난 위험만 관리할 수 있으므로, 먼저 적었습니다.',
+  })
+
+  // 영향도가 높은 항목을 위로 올린다. 표를 위에서부터 읽으면 그것이 곧 우선순위다.
+  const weight = (v: string) => (v === '높음' ? 2 : v === '중간' ? 1 : 0)
+  risks.sort((a, b) => weight(b.impact) * 2 + weight(b.chance) - (weight(a.impact) * 2 + weight(a.chance)))
+
+  const level = (v: string) => ({
+    text: v,
+    options: {
+      align: 'center' as const,
+      bold: v === '높음',
+      color: v === '높음' ? pal.brand : v === '중간' ? pal.ink : pal.gray,
+    },
+  })
+
+  slide.addTable(
+    [
+      tableHeader(pal, ['리스크', '발생 가능성', '영향도', '대응 방안']),
+      ...risks.map((r) => [
+        { text: r.risk, options: { bold: true, color: pal.ink } },
+        level(r.chance),
+        level(r.impact),
+        { text: r.plan, options: { color: pal.ink } },
+      ]),
+    ],
+    {
+      x: MARGIN, y: top, w: BODY_W,
+      colW: [1.7, 0.95, 0.8, BODY_W - 3.45],
+      // 유발 항목이 전부 걸리면 머리행까지 8행이다. 8 × 0.36 = 2.88로 각주 자리를 남긴다.
+      rowH: 0.36,
+      fontFace: FONT, fontSize: 9,
+      border: { type: 'solid', color: pal.line, pt: 1 },
+      valign: 'middle', autoPage: false,
+    }
+  )
+
+  slide.addText(
+    '※ 발생 가능성과 영향도는 유사 사업 수행 경험에 근거한 초기 평가이며, 착수 단계에서 발주기관과 재평가합니다.',
+    { x: MARGIN, y: H - 0.6, w: BODY_W, h: 0.3, fontFace: FONT, fontSize: 9, color: pal.gray }
+  )
+}
+
+function addCompany(pptx: Pptx, pal: BrandPalette, data: ProposalFormData, num: Numbering) {
   const angle = data.winTheme?.angle
   const { intro, coreCompetencies } = data.companyProfile
   const { slide, top } = contentSlide(pptx, pal, {
-    title: '제안사 소개', eyebrow: `07 · ${STEP.실행}`,
+    title: '제안사 소개', eyebrow: `${num.next()} · ${STEP.실행}`,
     lead: lead(angle, (a) => `'${a}'을 실행해 본 조직인지, 아래 근거로 보여드립니다.`),
   })
 
@@ -846,13 +1128,13 @@ function addCompany(pptx: Pptx, pal: BrandPalette, data: ProposalFormData) {
   }
 }
 
-function addTrackRecord(pptx: Pptx, pal: BrandPalette, data: ProposalFormData) {
+function addTrackRecord(pptx: Pptx, pal: BrandPalette, data: ProposalFormData, num: Numbering) {
   const angle = data.winTheme?.angle
   const records = data.companyProfile.trackRecords.filter((r) => r.client.trim() || r.description.trim())
   if (records.length === 0) return
 
   const { slide, top } = contentSlide(pptx, pal, {
-    title: '주요 수행 실적', eyebrow: `08 · ${STEP.실행}`,
+    title: '주요 수행 실적', eyebrow: `${num.next()} · ${STEP.실행}`,
     lead: lead(angle, (a) => `같은 문제를 이미 다뤄 본 사업들입니다.`),
   })
 
@@ -927,6 +1209,8 @@ export async function generateProposalPptx(data: ProposalFormData): Promise<Buff
       ? [{ label: '평가 항목별 대응 상세', step: STEP.근거 }]
       : []),
     { label: '추진 일정', step: STEP.실행 },
+    { label: '수행 조직 및 역할', step: STEP.실행 },
+    { label: '리스크 관리 방안', step: STEP.실행 },
     { label: '제안사 소개', step: STEP.실행 },
   ]
   if (data.companyProfile.trackRecords.some((r) => r.client.trim() || r.description.trim())) {
@@ -936,6 +1220,9 @@ export async function generateProposalPptx(data: ProposalFormData): Promise<Buff
   // 간지는 목차와 같은 배열에서 장 목록을 가져오므로 둘이 어긋나지 않는다.
   const chaptersOf = (step: string) => agenda.filter((a) => a.step === step).map((a) => a.label)
 
+  // 번호 발급기는 이 순서를 그대로 따라간다. 아래 호출 순서가 곧 번호 순서다.
+  const num = numbering()
+
   addCover(pptx, pal, data)
   addAgenda(pptx, pal, data, agenda)
 
@@ -943,20 +1230,23 @@ export async function generateProposalPptx(data: ProposalFormData): Promise<Buff
   addWinTheme(pptx, pal, data)
 
   addStepDivider(pptx, pal, STEP.문제, chaptersOf(STEP.문제))
-  addOverview(pptx, pal, data)
-  addAsIsToBe(pptx, pal, data)
-  addRequirementSummary(pptx, pal, data)
+  addOverview(pptx, pal, data, num)
+  addAsIsToBe(pptx, pal, data, num)
+  addRequirementSummary(pptx, pal, data, num)
 
   addStepDivider(pptx, pal, STEP.근거, chaptersOf(STEP.근거))
-  addRequirementResponses(pptx, pal, data)
-  addScoreChart(pptx, pal, data)
-  addEvaluation(pptx, pal, data)
-  addEvaluationDetail(pptx, pal, data)
+  addRequirementResponses(pptx, pal, data, num)
+  addScoreChart(pptx, pal, data, num)
+  addEvaluation(pptx, pal, data, num)
+  addEvaluationDetail(pptx, pal, data, num)
 
   addStepDivider(pptx, pal, STEP.실행, chaptersOf(STEP.실행))
-  addSchedule(pptx, pal, data)
-  addCompany(pptx, pal, data)
-  addTrackRecord(pptx, pal, data)
+  addSchedule(pptx, pal, data, num)
+  addGantt(pptx, pal, data, num)
+  addOrgChart(pptx, pal, data, num)
+  addRiskMatrix(pptx, pal, data, num)
+  addCompany(pptx, pal, data, num)
+  addTrackRecord(pptx, pal, data, num)
   addClosing(pptx, pal, data)
 
   return (await pptx.write({ outputType: 'nodebuffer' })) as Buffer
