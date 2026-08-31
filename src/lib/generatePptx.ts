@@ -306,6 +306,42 @@ function addCover(pptx: Pptx, pal: BrandPalette, data: ProposalFormData) {
   })
 }
 
+/**
+ * 단계 간지. 논지가 다음 단계로 넘어가는 자리를 표시하고, 그 단계에서 무엇을
+ * 다루는지 미리 알린다. 목차에서 만든 장 목록을 그대로 받아 쓰므로 두 곳이
+ * 어긋날 수 없다.
+ */
+const STEP_ROLE: Record<string, string> = {
+  [STEP.문제]: '발주기관이 무엇을 겪고 있는지 확인합니다.',
+  [STEP.기준]: '그래서 무엇으로 판단해야 하는지 밝힙니다.',
+  [STEP.근거]: '그 기준을 어떻게 충족하는지 증명합니다.',
+  [STEP.실행]: '약속을 지킬 수 있는 조직과 계획을 보입니다.',
+}
+
+function addStepDivider(pptx: Pptx, pal: BrandPalette, step: string, chapters: string[]) {
+  if (chapters.length === 0) return
+
+  const slide = newSlide(pptx)
+  slide.background = { color: pal.band }
+
+  slide.addShape('rect', { x: MARGIN, y: 1.9, w: 0.06, h: 1.5, fill: { color: pal.brand } })
+  slide.addText(step, {
+    x: MARGIN + 0.32, y: 1.85, w: BODY_W - 0.32, h: 0.6,
+    fontFace: FONT, fontSize: 30, bold: true, color: pal.brandDeep,
+  })
+  slide.addText(STEP_ROLE[step] ?? '', {
+    x: MARGIN + 0.32, y: 2.5, w: BODY_W - 0.32, h: 0.32,
+    fontFace: FONT, fontSize: 12, color: pal.gray,
+  })
+  slide.addText(
+    chapters.map((c) => ({ text: c, options: { breakLine: true, bullet: { code: '25AA' } } })),
+    {
+      x: MARGIN + 0.42, y: 2.95, w: BODY_W - 0.42, h: 1.1,
+      fontFace: FONT, fontSize: 12, color: pal.ink, lineSpacingMultiple: 1.4,
+    }
+  )
+}
+
 // 목차는 장 이름을 나열하지 않고, 각 장이 논지의 어느 단계인지를 보여준다.
 function addAgenda(
   pptx: Pptx,
@@ -509,7 +545,7 @@ function addRequirementSummary(pptx: Pptx, pal: BrandPalette, data: ProposalForm
 }
 
 /** 요구사항이 많으면 한 슬라이드에 다 들어가지 않으므로 나눠 담는다. */
-const ROWS_PER_SLIDE = 5
+const ROWS_PER_SLIDE = 4
 
 function addRequirementResponses(pptx: Pptx, pal: BrandPalette, data: ProposalFormData) {
   const angle = data.winTheme?.angle
@@ -825,15 +861,26 @@ export async function generateProposalPptx(data: ProposalFormData): Promise<Buff
     agenda.push({ label: '주요 수행 실적', step: STEP.실행 })
   }
 
+  // 간지는 목차와 같은 배열에서 장 목록을 가져오므로 둘이 어긋나지 않는다.
+  const chaptersOf = (step: string) => agenda.filter((a) => a.step === step).map((a) => a.label)
+
   addCover(pptx, pal, data)
   addAgenda(pptx, pal, data, agenda)
+
+  addStepDivider(pptx, pal, STEP.기준, chaptersOf(STEP.기준))
   addWinTheme(pptx, pal, data)
+
+  addStepDivider(pptx, pal, STEP.문제, chaptersOf(STEP.문제))
   addOverview(pptx, pal, data)
   addAsIsToBe(pptx, pal, data)
   addRequirementSummary(pptx, pal, data)
+
+  addStepDivider(pptx, pal, STEP.근거, chaptersOf(STEP.근거))
   addRequirementResponses(pptx, pal, data)
   addEvaluation(pptx, pal, data)
   addEvaluationDetail(pptx, pal, data)
+
+  addStepDivider(pptx, pal, STEP.실행, chaptersOf(STEP.실행))
   addSchedule(pptx, pal, data)
   addCompany(pptx, pal, data)
   addTrackRecord(pptx, pal, data)
