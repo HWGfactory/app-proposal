@@ -4,12 +4,18 @@
  */
 
 import type { RfpAnalysisResult } from './analyze'
+import type { StrategyBrief } from './strategy'
 import type { RfpSource } from '@/types/proposal'
 
+/**
+ * brief는 선택 인자다. 넘기지 않으면 결과가 예전과 완전히 같으므로,
+ * 브리프를 모르는 호출부가 있어도 깨지지 않는다.
+ */
 export function buildRfpSource(
   result: RfpAnalysisResult,
   selectedIds: Set<string>,
-  fileName: string
+  fileName: string,
+  brief?: StrategyBrief
 ): RfpSource {
   const { meta, requirements, evaluations } = result
 
@@ -33,5 +39,16 @@ export function buildRfpSource(
       score: item.score,
       page: item.page,
     })),
+
+    ...(brief
+      ? {
+          background: brief.background,
+          // 사용자가 체크 해제한 요구사항은 제안서에 없으므로 근거에서도 뺀다.
+          focus: brief.focus.map((f) => ({
+            ...f,
+            relatedRequirements: f.relatedRequirements.filter((r) => selectedIds.has(r.id)),
+          })),
+        }
+      : {}),
   }
 }

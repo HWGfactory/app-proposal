@@ -1,4 +1,5 @@
 import type { RequirementKind } from '@/lib/rfp/analyze'
+import type { BackgroundLine, EvaluationFocus } from '@/lib/rfp/strategy'
 import type { WinThemeEvidence } from '@/lib/rfp/winTheme'
 
 // ── RFP 원본 (제안서의 출발점) ───────────────────────────────────────────────
@@ -26,6 +27,16 @@ export interface RfpSource {
   duration: string         // 사업 기간
   requirements: RfpRequirementItem[]
   evaluations: EvaluationCriterion[]
+
+  // ── 전략 브리프에서 넘어오는 선택 데이터 ──────────────────────────────────
+  // strategy.ts가 이미 계산해 둔 것을 그대로 실어 나른다. 여기서 다시 만들지
+  // 않는다. buildRfpSource에 brief를 넘기지 않으면 비어 있고, 이 값에 기대는
+  // 슬라이드는 그때 조건부로 생략된다.
+
+  /** 사업 배경·목적 문단. AS-IS 서술의 근거가 된다 */
+  background?: BackgroundLine[]
+  /** 평가 항목별 배점 비중과 그 근거가 되는 요구사항 */
+  focus?: EvaluationFocus[]
 }
 
 // ── 제안사 정보 (사용자가 입력하는 유일한 영역) ──────────────────────────────

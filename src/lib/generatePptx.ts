@@ -327,6 +327,68 @@ function addOverview(pptx: Pptx, pal: BrandPalette, data: ProposalFormData) {
   })
 }
 
+/**
+ * AS-IS / TO-BE. 왼쪽은 고객이 제안요청서에 직접 쓴 현재 상황이고,
+ * 오른쪽은 요구사항에 수치로 박힌 목표다. 양쪽 다 원문에서만 가져오며
+ * 없는 사실을 지어내지 않는다.
+ *
+ * 배경 문단은 전략 브리프에서만 온다. 없으면 이 장을 만들지 않는다.
+ */
+// "3초 이내", "99.9% 이상", "1,000명" 처럼 단위가 붙은 수치를 목표로 본다.
+const MEASURABLE = /\d[\d,.]*\s*(?:%|초|분|시간|일|건|명|배|회|개월)/
+
+function addAsIsToBe(pptx: Pptx, pal: BrandPalette, data: ProposalFormData) {
+  const background = data.rfp.background ?? []
+  if (background.length === 0) return
+
+  const targets = data.rfp.requirements.filter((r) => MEASURABLE.test(r.requirement)).slice(0, 4)
+
+  const { slide, top } = contentSlide(pptx, pal, {
+    title: 'AS-IS / TO-BE',
+    eyebrow: `01-1 · ${STEP.문제}`,
+    lead: '왼쪽은 제안요청서가 밝힌 현재 상황이고, 오른쪽은 요구사항에 명시된 목표입니다.',
+  })
+
+  const colW = (BODY_W - 0.3) / 2
+  const columns: [string, string, string, { text: string; page: number }[]][] = [
+    ['AS-IS', '현재 상황', pal.gray, background.slice(0, 4).map((b) => ({ text: b.text, page: b.page }))],
+    ['TO-BE', '요구된 목표', pal.brand, targets.map((r) => ({ text: r.requirement, page: r.page }))],
+  ]
+
+  columns.forEach(([label, caption, color, items], i) => {
+    const x = MARGIN + i * (colW + 0.3)
+
+    slide.addShape('rect', { x, y: top, w: colW, h: 0.04, fill: { color } })
+    slide.addText(label, {
+      x, y: top + 0.14, w: colW, h: 0.3,
+      fontFace: FONT, fontSize: 13, bold: true, color,
+    })
+    slide.addText(caption, {
+      x, y: top + 0.46, w: colW, h: 0.24,
+      fontFace: FONT, fontSize: 10, color: pal.gray,
+    })
+
+    if (items.length === 0) {
+      slide.addText('제안요청서에서 확인되지 않았습니다.', {
+        x, y: top + 0.82, w: colW, h: 0.4,
+        fontFace: FONT, fontSize: 10, color: pal.gray, italic: true,
+      })
+      return
+    }
+
+    slide.addText(
+      items.map((it) => ({
+        text: `${it.text} (${it.page}p)`,
+        options: { breakLine: true, bullet: { code: '25AA' } },
+      })),
+      {
+        x: x + 0.12, y: top + 0.82, w: colW - 0.12, h: 2.6,
+        fontFace: FONT, fontSize: 10, color: pal.ink, lineSpacingMultiple: 1.45, valign: 'top',
+      }
+    )
+  })
+}
+
 function addRequirementSummary(pptx: Pptx, pal: BrandPalette, data: ProposalFormData) {
   const angle = data.winTheme?.angle
   const { slide, top } = contentSlide(pptx, pal, {
@@ -462,6 +524,75 @@ function addEvaluation(pptx: Pptx, pal: BrandPalette, data: ProposalFormData) {
   }
 }
 
+/**
+ * 평가 항목별 대응 상세. 배점이 큰 항목마다 한 장씩 배정해, 그 점수가 어떤
+ * 요구사항 위에 서 있는지와 분량을 얼마나 쓸지를 함께 보여준다.
+ *
+ * focus는 전략 브리프에서만 온다. 브리프 없이 만든 제안서에는 이 장이 없다.
+ */
+const EVALUATION_DETAIL_SLIDES = 4
+
+function addEvaluationDetail(pptx: Pptx, pal: BrandPalette, data: ProposalFormData) {
+  const focus = (data.rfp.focus ?? []).filter((f) => f.score > 0)
+  if (focus.length === 0) return
+
+  focus.slice(0, EVALUATION_DETAIL_SLIDES).forEach((item, i) => {
+    const { slide, top } = contentSlide(pptx, pal, {
+      title: item.label,
+      eyebrow: `04-${i + 1} · ${STEP.근거}`,
+      lead: `전체 배점의 ${item.sharePct}%가 걸린 항목입니다.`,
+    })
+
+    // 배점·비중·권장 분량을 한 줄로 세운다
+    const cards: [string, string][] = [
+      ['배점', `${item.score}점`],
+      ['비중', `${item.sharePct}%`],
+      ...(item.recommendedPages !== null
+        ? ([['권장 분량', `${item.recommendedPages}p`]] as [string, string][])
+        : []),
+    ]
+    const cardW = (BODY_W - 0.4) / 3
+    cards.forEach(([label, value], c) => {
+      const x = MARGIN + c * (cardW + 0.2)
+      slide.addShape('rect', {
+        x, y: top, w: cardW, h: 0.95,
+        fill: { color: pal.band }, line: { color: pal.line, width: 1 },
+      })
+      slide.addText(value, {
+        x, y: top + 0.12, w: cardW, h: 0.45,
+        fontFace: FONT, fontSize: 22, bold: true, color: pal.brand, align: 'center',
+      })
+      slide.addText(label, {
+        x, y: top + 0.6, w: cardW, h: 0.26,
+        fontFace: FONT, fontSize: 10, color: pal.gray, align: 'center',
+      })
+    })
+
+    const listTop = top + 1.25
+    if (item.relatedRequirements.length > 0) {
+      slide.addText('이 점수를 뒷받침하는 제안요청서 요구사항', {
+        x: MARGIN, y: listTop, w: BODY_W, h: 0.26,
+        fontFace: FONT, fontSize: 11, bold: true, color: pal.brandDeep,
+      })
+      slide.addText(
+        item.relatedRequirements.map((r) => ({
+          text: `${r.text} (${r.page}p)`,
+          options: { breakLine: true, bullet: { code: '25AA' } },
+        })),
+        {
+          x: MARGIN + 0.15, y: listTop + 0.34, w: BODY_W - 0.15, h: 1.5,
+          fontFace: FONT, fontSize: 10, color: pal.ink, lineSpacingMultiple: 1.45,
+        }
+      )
+    } else {
+      slide.addText('이 항목과 직접 연결되는 요구사항 문장은 제안요청서에서 확인되지 않았습니다.', {
+        x: MARGIN, y: listTop, w: BODY_W, h: 0.4,
+        fontFace: FONT, fontSize: 11, color: pal.gray,
+      })
+    }
+  })
+}
+
 function addSchedule(pptx: Pptx, pal: BrandPalette, data: ProposalFormData) {
   const angle = data.winTheme?.angle
   const { slide, top } = contentSlide(pptx, pal, {
@@ -593,9 +724,16 @@ export async function generateProposalPptx(data: ProposalFormData): Promise<Buff
   const agenda: { label: string; step: string }[] = [
     ...(data.winTheme?.headline.trim() ? [{ label: '제안 논지', step: STEP.기준 }] : []),
     { label: '사업 개요', step: STEP.문제 },
+    // 아래 두 장은 전략 브리프가 있을 때만 만들어지므로 목차도 함께 움직인다.
+    ...((data.rfp.background ?? []).length > 0
+      ? [{ label: 'AS-IS / TO-BE', step: STEP.문제 }]
+      : []),
     { label: '요구사항 구성', step: STEP.문제 },
     { label: '요구사항 대응 방안', step: STEP.근거 },
     { label: '평가 기준별 대응', step: STEP.근거 },
+    ...((data.rfp.focus ?? []).some((f) => f.score > 0)
+      ? [{ label: '평가 항목별 대응 상세', step: STEP.근거 }]
+      : []),
     { label: '추진 일정', step: STEP.실행 },
     { label: '제안사 소개', step: STEP.실행 },
   ]
@@ -607,9 +745,11 @@ export async function generateProposalPptx(data: ProposalFormData): Promise<Buff
   addAgenda(pptx, pal, data, agenda)
   addWinTheme(pptx, pal, data)
   addOverview(pptx, pal, data)
+  addAsIsToBe(pptx, pal, data)
   addRequirementSummary(pptx, pal, data)
   addRequirementResponses(pptx, pal, data)
   addEvaluation(pptx, pal, data)
+  addEvaluationDetail(pptx, pal, data)
   addSchedule(pptx, pal, data)
   addCompany(pptx, pal, data)
   addTrackRecord(pptx, pal, data)

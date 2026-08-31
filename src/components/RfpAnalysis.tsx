@@ -187,7 +187,7 @@ export default function RfpAnalysis({ result, fileName, brief, onReset, onUseFor
         </span>
         <button
           type="button"
-          onClick={() => onUseForProposal(buildRfpSource(result, selectedIds, fileName))}
+          onClick={() => onUseForProposal(buildRfpSource(result, selectedIds, fileName, brief))}
           className="btn-primary"
         >
           이 내용으로 제안서 작성
