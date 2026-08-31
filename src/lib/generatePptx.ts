@@ -59,6 +59,72 @@ function isThemeProof(data: ProposalFormData, text: string): boolean {
 type Pptx = import('pptxgenjs').default
 type Slide = ReturnType<Pptx['addSlide']>
 
+// ── AI 흔적 제거 ─────────────────────────────────────────────────────────────
+
+/**
+ * 줄표(em/en dash)는 한국어 실무 문서에서 거의 쓰이지 않아, 제안서에 섞이면
+ * 기계가 쓴 티가 바로 난다. 쉼표로 내려 자연스러운 문장으로 되돌린다.
+ * 가운뎃점(·)은 국문 표기에서 정상이므로 건드리지 않는다.
+ */
+const DASH_TELL = /\s*[—–―‒]\s*/g
+
+function stripTells(text: string): string {
+  return text
+    .replace(DASH_TELL, ', ')
+    // 대시가 문장부호 옆이나 끝에 있었다면 쉼표가 겹치므로 정리한다
+    .replace(/,\s*([,.:;)\]}])/g, '$1')
+    .replace(/([([{])\s*,\s*/g, '$1')
+    .replace(/,\s*$/g, '')
+    .replace(/\s{2,}/g, ' ')
+    .trim()
+}
+
+type TextArg = Parameters<Slide['addText']>[0]
+type TableArg = Parameters<Slide['addTable']>[0]
+
+function cleanText(arg: TextArg): TextArg {
+  if (typeof arg === 'string') return stripTells(arg)
+  if (Array.isArray(arg)) {
+    return arg.map((run) =>
+      typeof run.text === 'string' ? { ...run, text: stripTells(run.text) } : run
+    ) as TextArg
+  }
+  return arg
+}
+
+function cleanTable(rows: TableArg): TableArg {
+  if (!Array.isArray(rows)) return rows
+  return rows.map((row) =>
+    Array.isArray(row)
+      ? row.map((cell) =>
+          typeof cell === 'string'
+            ? stripTells(cell)
+            : typeof cell?.text === 'string'
+              ? { ...cell, text: stripTells(cell.text) }
+              : cell
+        )
+      : row
+  ) as TableArg
+}
+
+/**
+ * 슬라이드에 글이 들어가는 통로는 addText와 addTable 둘뿐이다. 호출부 40여 곳을
+ * 일일이 고치면 언젠가 빠뜨리므로, 슬라이드를 만들 때 이 두 개를 감싸 둔다.
+ * 사용자가 Win Theme을 고쳐 쓰거나 RFP 원문에 대시가 있어도 여기서 걸린다.
+ */
+function newSlide(pptx: Pptx): Slide {
+  const slide = pptx.addSlide()
+  const addText = slide.addText.bind(slide)
+  const addTable = slide.addTable.bind(slide)
+
+  slide.addText = ((arg: TextArg, opts?: unknown) =>
+    addText(cleanText(arg), opts as never)) as Slide['addText']
+  slide.addTable = ((rows: TableArg, opts?: unknown) =>
+    addTable(cleanTable(rows), opts as never)) as Slide['addTable']
+
+  return slide
+}
+
 // ── 공통 레이아웃 ────────────────────────────────────────────────────────────
 
 /**
@@ -76,7 +142,7 @@ function contentSlide(
   opts: { title: string; eyebrow?: string; lead?: string }
 ): { slide: Slide; top: number } {
   const { title, eyebrow, lead } = opts
-  const slide = pptx.addSlide()
+  const slide = newSlide(pptx)
   slide.background = { color: pal.white }
 
   if (eyebrow) {
@@ -111,7 +177,7 @@ function tableHeader(pal: BrandPalette, labels: string[]) {
 // ── 슬라이드 ─────────────────────────────────────────────────────────────────
 
 function addCover(pptx: Pptx, pal: BrandPalette, data: ProposalFormData) {
-  const slide = pptx.addSlide()
+  const slide = newSlide(pptx)
   slide.background = { color: pal.brandDark }
 
   // 로고는 좌상단에 원본 비율을 유지한 채 올린다.
@@ -439,7 +505,7 @@ function addCompany(pptx: Pptx, pal: BrandPalette, data: ProposalFormData) {
   const { intro, coreCompetencies } = data.companyProfile
   const { slide, top } = contentSlide(pptx, pal, {
     title: '제안사 소개', eyebrow: `06 · ${STEP.실행}`,
-    lead: lead(angle, (a) => `'${a}'을 실행해 본 조직인가 — 아래가 그 근거입니다.`),
+    lead: lead(angle, (a) => `'${a}'을 실행해 본 조직인지, 아래 근거로 보여드립니다.`),
   })
 
   slide.addText(intro || `${data.companyName}는 유사 사업 수행 경험을 바탕으로 본 사업을 수행합니다.`, {
@@ -490,7 +556,7 @@ function addTrackRecord(pptx: Pptx, pal: BrandPalette, data: ProposalFormData) {
 }
 
 function addClosing(pptx: Pptx, pal: BrandPalette, data: ProposalFormData) {
-  const slide = pptx.addSlide()
+  const slide = newSlide(pptx)
   slide.background = { color: pal.brandDark }
   const closing = data.winTheme?.headline.trim()
   slide.addText(closing ? '약속드린 것' : '감사합니다', {

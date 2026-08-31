@@ -88,7 +88,7 @@ export function buildWinThemes(
       headline: `${client}이 가장 높은 배점(${top.score}점·${top.sharePct}%)을 둔 '${top.label}'에, ${termPhrase} 중심의 검증된 실행력으로 답합니다.`,
       rationale: `배점이 가장 큰 항목입니다. 여기서 벌어지는 점수 차이가 순위를 가르므로, 제안서 전체를 이 축으로 정렬하는 것이 가장 안전한 선택입니다.`,
       evidence: [
-        { kind: '평가', text: `${top.label} — ${top.score}점 (전체의 ${top.sharePct}%)`, page: 0 },
+        { kind: '평가', text: `${top.label} · ${top.score}점 (전체의 ${top.sharePct}%)`, page: 0 },
         ...top.relatedRequirements.map((r) => ({
           kind: '요구사항' as const,
           text: r.text,
@@ -147,7 +147,7 @@ export function buildWinThemes(
         { kind: '조건', text: passMark.detail, page: passMark.page },
         ...brief.focus.slice(0, 2).map((f) => ({
           kind: '평가' as const,
-          text: `${f.label} — ${f.score}점`,
+          text: `${f.label} · ${f.score}점`,
           page: 0,
         })),
       ],
