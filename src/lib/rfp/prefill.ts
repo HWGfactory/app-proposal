@@ -51,7 +51,8 @@ function restoreBackground(picked: BackgroundLine[], lines: RfpLine[]): Backgrou
 
   // 문장 끝(…다. …함. …음.)에서 자른다. 못 자르면 통째로 한 덩이가 된다.
   return blob
-    .split(/(?<=[다함음됨임].)\s*/)
+    // 마침표를 이스케이프하지 않으면 "리드타임을 "처럼 문장 한가운데서 잘린다.
+    .split(/(?<=[다함음됨임]\.)\s*/)
     .map((s) => s.trim())
     .filter((s) => s.length > 10)
     .map((text) => ({ text, page }))

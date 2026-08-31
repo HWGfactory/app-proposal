@@ -20,10 +20,32 @@ const BODY_W = W - MARGIN * 2
 const FONT = '맑은 고딕'
 
 // 요구사항 유형별 표준 대응 문구. 아래 키워드 버킷에 걸리지 않을 때만 쓰인다.
-const STANDARD_RESPONSE: Record<RequirementKind, string> = {
-  기능: '요구 기능을 표준 모듈로 구현하고, 상세 설계 단계에서 고객사 업무 절차에 맞춰 화면·데이터 구조를 확정합니다.',
-  비기능: '성능·보안·가용성 목표를 설계 기준으로 반영하고, 통합 테스트 단계에서 정량 지표로 충족 여부를 검증합니다.',
-  기타: '제안요청서에 명시된 조건을 계약 및 수행 계획에 반영하여 준수합니다.',
+/**
+ * 주제 규칙에 걸리지 않은 요구사항이 쓰는 기본 문구.
+ *
+ * 유형마다 하나만 두면, 규칙에 안 걸린 요구사항이 여러 건일 때 표에 똑같은
+ * 문장이 줄줄이 선다. 뜻이 같은 여러 표현을 두고 아직 덜 쓴 것을 고르면
+ * 지어낸 내용 없이 되풀이만 사라진다. 어느 문장을 골라도 말하는 바는 같다.
+ */
+const STANDARD_RESPONSES: Record<RequirementKind, string[]> = {
+  기능: [
+    '요구 기능을 표준 모듈로 구현하고, 상세 설계 단계에서 고객사 업무 절차에 맞춰 화면·데이터 구조를 확정합니다.',
+    '현행 업무 흐름을 먼저 확인한 뒤 기능 단위로 나누어, 처리 절차와 예외 경로를 설계 산출물에 함께 적습니다.',
+    '화면과 데이터 항목을 요구사항 단위로 짝지어, 검수 때 어느 화면에서 확인하는지를 미리 지정해 둡니다.',
+    '표준 기능을 기준으로 구성하되 기관 고유 절차는 설정으로 흡수하여, 이후 변경 시 코드를 고치지 않아도 되게 만듭니다.',
+  ],
+  비기능: [
+    '성능·보안·가용성 목표를 설계 기준으로 반영하고, 통합 테스트 단계에서 정량 지표로 충족 여부를 검증합니다.',
+    '요구된 수치를 그대로 시험 항목으로 옮겨 두고, 시험 결과서로 달성 여부를 근거와 함께 제출합니다.',
+    '설계 단계에서 기준값을 확정하고, 운영 이관 전에 측정 결과를 발주기관과 나란히 놓고 대조합니다.',
+    '요구 수준을 아키텍처 결정의 제약으로 삼아, 구현이 끝난 뒤가 아니라 설계 시점에 충족 여부를 판단합니다.',
+  ],
+  기타: [
+    '제안요청서에 명시된 조건을 계약 및 수행 계획에 반영하여 준수합니다.',
+    '해당 조건을 착수 단계 점검표에 올려, 단계마다 이행 여부를 확인하고 기록으로 남깁니다.',
+    '요구된 사항을 수행 계획서에 명시하고, 관련 산출물 제출로 이행을 증빙합니다.',
+    '조건 충족 여부를 검수 항목에 포함하여, 사업이 끝나기 전에 발주기관과 함께 확인합니다.',
+  ],
 }
 
 /**
@@ -56,7 +78,7 @@ const RESPONSE_RULES: { pattern: RegExp; write: (term: string) => string }[] = [
   },
   {
     pattern: /(ISMS-P|ISMS|개인정보|정보통신망|암호화|접근권한|보안)/,
-    write: (t) => `${t} 요건을 설계 산출물의 검토 항목으로 고정하고, 통합 테스트 단계에서 취약점 점검과 함께 확인합니다.`,
+    write: (t) => `${t} 요건을 설계 산출물의 검토 항목으로 고정하고, 통합 테스트 단계의 취약점 점검으로 이행을 입증합니다.`,
   },
   {
     pattern: /(동시접속자|동시접속|응답시간|가용성|무중단|자동처리율|처리율|성능)/,
@@ -78,7 +100,7 @@ const RESPONSE_RULES: { pattern: RegExp; write: (term: string) => string }[] = [
     // "사용자"만으로는 잡지 않는다. 화면과 무관한 문장에도 흔히 들어가는 말이라,
     // 챗봇 엔진 요구사항이 화면 설계 문구를 받는 일이 생긴다.
     pattern: /(사용자경험|사용자화면|화면|UI)/,
-    write: (t) => `${t} 설계는 시안 검토를 거쳐 확정하고, 사용자 검수에서 실제 업무 흐름대로 확인합니다.`,
+    write: (t) => `${t} 설계는 시안 검토를 거쳐 확정하고, 사용자 검수에서 실제 업무 흐름대로 점검받습니다.`,
   },
   {
     pattern: /(교육|매뉴얼|가이드|인수인계)/,
@@ -86,7 +108,7 @@ const RESPONSE_RULES: { pattern: RegExp; write: (term: string) => string }[] = [
   },
   {
     pattern: /(관계법령|법령|법규|표준|규정|지침)/,
-    write: (t) => `${t} 준수 항목을 점검표로 만들어, 단계별 산출물 검토 시 함께 확인합니다.`,
+    write: (t) => `${t} 준수 항목을 점검표로 만들어, 단계별 산출물 검토마다 하나씩 대조합니다.`,
   },
   {
     pattern: /(클라우드|인프라|서버|백업|이중화)/,
@@ -102,13 +124,33 @@ const RESPONSE_RULES: { pattern: RegExp; write: (term: string) => string }[] = [
   },
 ]
 
-function responseFor(req: RfpRequirementItem): string {
+function ruleResponse(req: RfpRequirementItem): string | null {
   const compact = req.requirement.replace(/\s/g, '')
   for (const rule of RESPONSE_RULES) {
     const hit = compact.match(rule.pattern)
     if (hit) return rule.write(hit[1])
   }
-  return STANDARD_RESPONSE[req.kind]
+  return null
+}
+
+/**
+ * 대응 문구를 고르되, 한 문서 안에서 같은 문장이 두 번 서지 않게 한다.
+ *
+ * 주제 규칙이 걸리면 그 문장이 1순위다. 다만 같은 규칙이 같은 낱말로 두 번
+ * 걸리면 문장까지 똑같아지므로, 그때는 아직 덜 쓴 기본 문구로 넘어간다.
+ * 문서마다 새로 만들어 쓰므로 요청 사이에 상태가 섞이지 않는다.
+ */
+function responseWriter(): (req: RfpRequirementItem) => string {
+  const used = new Map<string, number>()
+  const seen = (s: string) => used.get(s) ?? 0
+
+  return (req) => {
+    const rule = ruleResponse(req)
+    const candidates = [...(rule ? [rule] : []), ...STANDARD_RESPONSES[req.kind]]
+    const pick = candidates.reduce((best, c) => (seen(c) < seen(best) ? c : best), candidates[0])
+    used.set(pick, seen(pick) + 1)
+    return pick
+  }
 }
 
 // 요구사항 유형 색도 브랜드 팔레트에서 파생한다.
@@ -297,7 +339,22 @@ function displayLabel(raw: string): string {
  * 않는다. 붙이면 같은 문장이 두 행에 겹쳐 실린다.
  */
 function quote(text: string): string {
-  return text.replace(/[,·]s*$/, '').trim()
+  return text.replace(/[,·]\s*$/, '').trim()
+}
+
+/**
+ * 요구 문장을 지표 이름으로 줄인다.
+ *
+ * 기대 효과 표는 요구사항 대응 표와 같은 문장을 다시 싣기 쉬운 자리다.
+ * 의무 어미를 떼면 "챗봇의 평균 응답시간은 3초 이내"처럼 지표 목록으로 읽혀,
+ * 같은 사실을 말하면서도 앞 표를 되풀이하지 않는다.
+ */
+function metricPhrase(text: string): string {
+  return quote(text)
+    // 긴 것부터 떼야 "복구할 수 있어야 한다"가 "복구할 수"로 남지 않는다.
+    .replace(/\s*(?:할\s*수\s*있어야|이어야|여야|하여야|되어야|어야|해야)\s*한다\.?\s*$/, '')
+    .replace(/\s*(?:한다|합니다)\.?\s*$/, '')
+    .trim()
 }
 
 function tableHeader(pal: BrandPalette, labels: string[]) {
@@ -553,13 +610,27 @@ function addOverview(pptx: Pptx, pal: BrandPalette, data: ProposalFormData, num:
  * 배경 문단은 전략 브리프에서만 온다. 없으면 이 장을 만들지 않는다.
  */
 // "3초 이내", "99.9% 이상", "1,000명" 처럼 단위가 붙은 수치를 목표로 본다.
+// 배경 문단에서 '그래서 무엇을 하려 한다'에 해당하는 문장을 가른다.
+const PURPOSE = /목적|위하여|위해|하고자|확립하여|개선하여/
+
 const MEASURABLE = /\d[\d,.]*\s*(?:%|초|분|시간|일|건|명|배|회|개월)/
 
 function addAsIsToBe(pptx: Pptx, pal: BrandPalette, data: ProposalFormData, num: Numbering) {
   const background = data.rfp.background ?? []
   if (background.length === 0) return
 
-  const targets = data.rfp.requirements.filter((r) => MEASURABLE.test(r.requirement)).slice(0, 4)
+  // 배경 문단은 대개 "현황"과 "그래서 무엇을 하려 한다"로 나뉜다. 목적 문장을
+  // TO-BE로 쓰면 그것이 곧 발주기관이 말한 목표라 정확하고, 뒤의 기대 효과
+  // 장과 같은 문장을 두 번 싣지 않게 된다.
+  const purpose = background.filter((b) => PURPOSE.test(b.text))
+  const current = background.filter((b) => !PURPOSE.test(b.text))
+  const targets =
+    purpose.length > 0
+      ? purpose.map((b) => ({ text: b.text, page: b.page }))
+      : data.rfp.requirements
+          .filter((r) => MEASURABLE.test(r.requirement))
+          .slice(0, 4)
+          .map((r) => ({ text: quote(r.requirement), page: r.page }))
 
   const { slide, top } = contentSlide(pptx, pal, {
     title: 'AS-IS / TO-BE',
@@ -569,8 +640,8 @@ function addAsIsToBe(pptx: Pptx, pal: BrandPalette, data: ProposalFormData, num:
 
   const colW = (BODY_W - 0.3) / 2
   const columns: [string, string, string, { text: string; page: number }[]][] = [
-    ['AS-IS', '현재 상황', pal.gray, background.slice(0, 4).map((b) => ({ text: b.text, page: b.page }))],
-    ['TO-BE', '요구된 목표', pal.brand, targets.map((r) => ({ text: quote(r.requirement), page: r.page }))],
+    ['AS-IS', '현재 상황', pal.gray, (current.length > 0 ? current : background).slice(0, 4)],
+    ['TO-BE', '제안요청서가 밝힌 목표', pal.brand, targets.slice(0, 4)],
   ]
 
   columns.forEach(([label, caption, color, items], i) => {
@@ -696,6 +767,8 @@ function addRequirementResponses(pptx: Pptx, pal: BrandPalette, data: ProposalFo
   )
 
   const kindColor = kindColors(pal)
+  // 문서 전체에 걸쳐 같은 대응 문장이 두 번 서지 않도록 한 곳에서 발급한다.
+  const write = responseWriter()
   const pages = Math.ceil(reqs.length / ROWS_PER_SLIDE)
   for (let p = 0; p < pages; p++) {
     const chunk = reqs.slice(p * ROWS_PER_SLIDE, (p + 1) * ROWS_PER_SLIDE)
@@ -721,7 +794,7 @@ function addRequirementResponses(pptx: Pptx, pal: BrandPalette, data: ProposalFo
           },
           { text: r.kind, options: { color: kindColor[r.kind], align: 'center' as const } },
           { text: quote(r.requirement), options: { color: pal.ink, bold: proof } },
-          { text: responseFor(r), options: { color: pal.gray } },
+          { text: write(r), options: { color: pal.gray } },
           { text: `${r.page}p`, options: { color: pal.gray, align: 'center' as const } },
         ]
       }),
@@ -1065,7 +1138,7 @@ function addExpectedEffect(pptx: Pptx, pal: BrandPalette, data: ProposalFormData
       ...measured.map(({ req, hit }) => {
         const rule = VERIFY_RULES.find((v) => v.pattern.test(req.requirement))
         return [
-          { text: quote(req.requirement), options: { color: pal.ink } },
+          { text: metricPhrase(req.requirement), options: { color: pal.ink } },
           { text: (hit as RegExpMatchArray)[0].replace(/\s+/g, ''), options: { bold: true, color: pal.brand, align: 'center' as const } },
           { text: rule?.how ?? '단계별 검수 확인서', options: { color: pal.ink, align: 'center' as const } },
           { text: `${req.page}p`, options: { color: pal.gray, align: 'center' as const } },
