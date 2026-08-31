@@ -607,13 +607,82 @@ function addRequirementResponses(pptx: Pptx, pal: BrandPalette, data: ProposalFo
   }
 }
 
+/**
+ * 배점 구성. 어느 항목에 점수가 몰려 있는지를 길이로 한 번에 보여준다.
+ * 뒤따르는 표가 같은 값을 숫자로 다시 싣지만, 표는 대응 근거까지 담아야 해서
+ * 크기 비교가 묻힌다. 표와 차트를 함께 두는 쪽이 8개 항목에는 맞다.
+ *
+ * 색은 한 가지만 쓴다. 항목 이름은 순서를 바꿔도 뜻이 변하지 않는 명목값이라
+ * 막대마다 다른 색을 주면 길이가 이미 말한 크기를 색으로 또 말하게 된다.
+ * 브랜드가 단일 채색이라 3단계 명암 램프가 로고 색에 따라 무너지는 문제도
+ * 함께 사라진다.
+ */
+const CHART_LABEL_MAX = 22
+
+function addScoreChart(pptx: Pptx, pal: BrandPalette, data: ProposalFormData) {
+  const scored = data.rfp.evaluations
+    .filter((e): e is typeof e & { score: number } => e.score !== null && e.score > 0)
+    .sort((a, b) => a.score - b.score) // 가로 막대는 아래에서 위로 쌓여 큰 값이 위로 간다
+  if (scored.length < 2) return
+
+  const total = scored.reduce((s, e) => s + e.score, 0)
+  const top = scored[scored.length - 1]
+
+  const { slide } = contentSlide(pptx, pal, {
+    title: '배점 구성',
+    eyebrow: `04 · ${STEP.근거}`,
+    lead: `배점이 어디에 몰려 있는지가 집필 분량을 정합니다.`,
+  })
+
+  // addChart는 newSlide 래퍼를 타지 않으므로 라벨에 stripTells를 직접 건다.
+  const labels = scored.map((e) => {
+    const clean = stripTells(e.label)
+    return clean.length > CHART_LABEL_MAX ? clean.slice(0, CHART_LABEL_MAX) : clean
+  })
+
+  slide.addChart(
+    'bar',
+    [{ name: '배점', labels, values: scored.map((e) => e.score) }],
+    {
+      x: MARGIN, y: 1.5, w: BODY_W, h: 3.2,
+      barDir: 'bar',
+      barGrouping: 'clustered',
+      chartColors: [pal.brand],
+      // 기본값에 기대지 않고 전부 명시한다.
+      showTitle: false,
+      showLegend: false,
+      showValue: true,
+      dataLabelPosition: 'outEnd',
+      dataLabelColor: pal.ink,
+      dataLabelFontFace: FONT,
+      dataLabelFontSize: 10,
+      showCatAxisTitle: false,
+      showValAxisTitle: false,
+      catAxisLabelColor: pal.ink,
+      catAxisLabelFontFace: FONT,
+      catAxisLabelFontSize: 9,
+      valAxisLabelColor: pal.gray,
+      valAxisLabelFontFace: FONT,
+      valAxisLabelFontSize: 9,
+      valAxisMaxVal: Math.ceil((top.score * 1.15) / 5) * 5,
+      catGridLine: { style: 'none' },
+      valGridLine: { color: pal.line, style: 'solid', size: 1 },
+    }
+  )
+
+  slide.addText(
+    `확인된 배점 ${total}점 가운데 ${stripTells(top.label)}이 ${top.score}점으로 가장 큽니다.`,
+    { x: MARGIN, y: H - 0.8, w: BODY_W, h: 0.32, fontFace: FONT, fontSize: 10, color: pal.gray }
+  )
+}
+
 function addEvaluation(pptx: Pptx, pal: BrandPalette, data: ProposalFormData) {
   const angle = data.winTheme?.angle
   const evals = [...data.rfp.evaluations].sort((a, b) => (b.score ?? -1) - (a.score ?? -1))
   if (evals.length === 0) return
 
   const { slide, top } = contentSlide(pptx, pal, {
-    title: '평가 기준별 대응', eyebrow: `04 · ${STEP.근거}`,
+    title: '평가 기준별 대응', eyebrow: `05 · ${STEP.근거}`,
     lead: lead(angle, (a) => `배점이 큰 항목부터, '${a}'을 근거로 대응합니다.`),
   })
   const total = evals.reduce((s, e) => s + (e.score ?? 0), 0)
@@ -659,7 +728,7 @@ function addEvaluationDetail(pptx: Pptx, pal: BrandPalette, data: ProposalFormDa
   focus.slice(0, EVALUATION_DETAIL_SLIDES).forEach((item, i) => {
     const { slide, top } = contentSlide(pptx, pal, {
       title: item.label,
-      eyebrow: `04-${i + 1} · ${STEP.근거}`,
+      eyebrow: `05-${i + 1} · ${STEP.근거}`,
       lead: `전체 배점의 ${item.sharePct}%가 걸린 항목입니다.`,
     })
 
@@ -716,7 +785,7 @@ function addEvaluationDetail(pptx: Pptx, pal: BrandPalette, data: ProposalFormDa
 function addSchedule(pptx: Pptx, pal: BrandPalette, data: ProposalFormData) {
   const angle = data.winTheme?.angle
   const { slide, top } = contentSlide(pptx, pal, {
-    title: '추진 일정', eyebrow: `05 · ${STEP.실행}`,
+    title: '추진 일정', eyebrow: `06 · ${STEP.실행}`,
     lead: lead(angle, (a) => `'${a}'을 언제 확인할 수 있는지를 단계마다 못 박았습니다.`),
   })
 
@@ -755,7 +824,7 @@ function addCompany(pptx: Pptx, pal: BrandPalette, data: ProposalFormData) {
   const angle = data.winTheme?.angle
   const { intro, coreCompetencies } = data.companyProfile
   const { slide, top } = contentSlide(pptx, pal, {
-    title: '제안사 소개', eyebrow: `06 · ${STEP.실행}`,
+    title: '제안사 소개', eyebrow: `07 · ${STEP.실행}`,
     lead: lead(angle, (a) => `'${a}'을 실행해 본 조직인지, 아래 근거로 보여드립니다.`),
   })
 
@@ -783,7 +852,7 @@ function addTrackRecord(pptx: Pptx, pal: BrandPalette, data: ProposalFormData) {
   if (records.length === 0) return
 
   const { slide, top } = contentSlide(pptx, pal, {
-    title: '주요 수행 실적', eyebrow: `07 · ${STEP.실행}`,
+    title: '주요 수행 실적', eyebrow: `08 · ${STEP.실행}`,
     lead: lead(angle, (a) => `같은 문제를 이미 다뤄 본 사업들입니다.`),
   })
 
@@ -850,6 +919,9 @@ export async function generateProposalPptx(data: ProposalFormData): Promise<Buff
       : []),
     { label: '요구사항 구성', step: STEP.문제 },
     { label: '요구사항 대응 방안', step: STEP.근거 },
+    ...(data.rfp.evaluations.filter((e) => (e.score ?? 0) > 0).length >= 2
+      ? [{ label: '배점 구성', step: STEP.근거 }]
+      : []),
     { label: '평가 기준별 대응', step: STEP.근거 },
     ...((data.rfp.focus ?? []).some((f) => f.score > 0)
       ? [{ label: '평가 항목별 대응 상세', step: STEP.근거 }]
@@ -877,6 +949,7 @@ export async function generateProposalPptx(data: ProposalFormData): Promise<Buff
 
   addStepDivider(pptx, pal, STEP.근거, chaptersOf(STEP.근거))
   addRequirementResponses(pptx, pal, data)
+  addScoreChart(pptx, pal, data)
   addEvaluation(pptx, pal, data)
   addEvaluationDetail(pptx, pal, data)
 
