@@ -42,6 +42,19 @@ function clientName(analysis: RfpAnalysisResult): string {
   return analysis.meta.client?.trim() || '발주기관'
 }
 
+/**
+ * 받침 유무로 조사를 고른다.
+ *
+ * 기관명은 RFP에서 그대로 읽어 오므로 받침이 있을지 없을지 알 수 없다.
+ * "진흥원이"는 맞지만 같은 자리에 "공사이"가 들어가면 첫 문장부터 틀린 말이 된다.
+ */
+function josa(word: string, withBatchim: string, without: string): string {
+  const code = word.charCodeAt(word.length - 1)
+  const isHangul = code >= 0xac00 && code <= 0xd7a3
+  const hasBatchim = !isHangul || (code - 0xac00) % 28 !== 0
+  return word + (hasBatchim ? withBatchim : without)
+}
+
 /** 핵심 키워드 중 도메인 성격이 강한 앞쪽 몇 개 */
 function topTerms(brief: StrategyBrief, count: number): string[] {
   return brief.keywords.filter((k) => k.weighted).slice(0, count).map((k) => k.term)
@@ -85,7 +98,7 @@ export function buildWinThemes(
   if (top) {
     push({
       angle: '최고 배점 집중',
-      headline: `${client}이 가장 높은 배점(${top.score}점·${top.sharePct}%)을 둔 '${top.label}'에, ${termPhrase} 중심의 검증된 실행력으로 답합니다.`,
+      headline: `${josa(client, '이', '가')} 가장 높은 배점(${top.score}점·${top.sharePct}%)을 둔 '${top.label}'에, ${termPhrase} 중심의 검증된 실행력으로 답합니다.`,
       rationale: `배점이 가장 큰 항목입니다. 여기서 벌어지는 점수 차이가 순위를 가르므로, 제안서 전체를 이 축으로 정렬하는 것이 가장 안전한 선택입니다.`,
       evidence: [
         { kind: '평가', text: `${top.label} · ${top.score}점 (전체의 ${top.sharePct}%)`, page: 0 },
@@ -104,7 +117,7 @@ export function buildWinThemes(
   if (reliability.length >= 2) {
     push({
       angle: '오픈 이후의 안정성',
-      headline: `구축보다 어려운 것은 오픈 이후입니다. ${client}이 제시한 가용성·응답 기준을 설계 시점부터 못 박아, 개통 첫날부터 흔들리지 않는 운영을 보장합니다.`,
+      headline: `구축보다 어려운 것은 오픈 이후입니다. ${josa(client, '이', '가')} 제시한 가용성·응답 기준을 설계 시점부터 못 박아, 개통 첫날부터 흔들리지 않는 운영을 보장합니다.`,
       rationale: `비기능 요구사항이 ${reliability.length}건 이상 수치로 명시돼 있습니다. 발주기관이 이미 운영 리스크를 걱정하고 있다는 뜻이라, 이 불안을 정면으로 다루면 공감대가 크게 벌어집니다.`,
       evidence: [...reliability, ...backgroundEvidence(brief, 1)],
     })

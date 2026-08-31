@@ -264,7 +264,9 @@ function contentSlide(
 
 // 부문 셀은 "가격 평가", "기술 능력"처럼 두 낱말이다. 한 낱말짜리 "위험관리"가
 // "위험 관리"로 잘리지 않도록 앞에 공백이 있는 경우만 경계로 본다.
-const SECTION_CELL = /^(\S+\s\S*(?:부문|평가|능력|이해도|관리))(?=[가-힣A-Za-z])/
+// 추출 단계에서 공백이 살아나면 부문 셀과 항목 셀 사이에 공백 하나가 남으므로,
+// 경계 뒤의 공백 한 칸까지 허용해야 붙어 나온 경우와 같이 잡힌다.
+const SECTION_CELL = /^(\S+\s\S*(?:부문|평가|능력|이해도|관리))(?=\s?[가-힣A-Za-z])/
 
 // 표 안에서만 붙어 나오는 낱말들. 일반 문장에는 적용하지 않는다.
 const LOANWORD = /(?<=[가-힣]{2})(아키텍처|플랫폼|인프라|솔루션|프레임워크|프로세스)/g
@@ -772,7 +774,14 @@ function addScoreChart(pptx: Pptx, pal: BrandPalette, data: ProposalFormData, nu
   // addChart는 newSlide 래퍼를 타지 않으므로 라벨에 stripTells를 직접 건다.
   const labels = scored.map((e) => {
     const clean = stripTells(displayLabel(e.label))
-    return clean.length > CHART_LABEL_MAX ? clean.slice(0, CHART_LABEL_MAX) : clean
+    if (clean.length <= CHART_LABEL_MAX) return clean
+    // 글자 수로 잘라내면 "인력투입 계"처럼 낱말 한가운데가 끊긴다.
+    // 부문 접두를 떼면 대개 들어가고, 그래도 길면 낱말 경계에서 끊는다.
+    const tail = clean.includes(' · ') ? clean.slice(clean.indexOf(' · ') + 3) : clean
+    if (tail.length <= CHART_LABEL_MAX) return tail
+    const cut = tail.slice(0, CHART_LABEL_MAX)
+    const space = cut.lastIndexOf(' ')
+    return `${space > CHART_LABEL_MAX * 0.6 ? cut.slice(0, space) : cut}…`
   })
 
   slide.addChart(
@@ -799,6 +808,8 @@ function addScoreChart(pptx: Pptx, pal: BrandPalette, data: ProposalFormData, nu
       valAxisLabelColor: pal.gray,
       valAxisLabelFontFace: FONT,
       valAxisLabelFontSize: 9,
+      // 배점에 음수는 없다. 최소값을 두지 않으면 축이 -10에서 시작한다.
+      valAxisMinVal: 0,
       valAxisMaxVal: Math.ceil((top.score * 1.15) / 5) * 5,
       catGridLine: { style: 'none' },
       valGridLine: { color: pal.line, style: 'solid', size: 1 },
@@ -806,7 +817,7 @@ function addScoreChart(pptx: Pptx, pal: BrandPalette, data: ProposalFormData, nu
   )
 
   slide.addText(
-    `확인된 배점 ${total}점 가운데 ${stripTells(displayLabel(top.label))}이 ${top.score}점으로 가장 큽니다.`,
+    `확인된 배점 ${total}점 가운데 ${josa(stripTells(displayLabel(top.label)), '이', '가')} ${top.score}점으로 가장 큽니다.`,
     { x: MARGIN, y: H - 0.8, w: BODY_W, h: 0.32, fontFace: FONT, fontSize: 10, color: pal.gray }
   )
 }
@@ -1454,7 +1465,7 @@ function addCompany(pptx: Pptx, pal: BrandPalette, data: ProposalFormData, num: 
     lead: lead(angle, (a) => `'${a}'을 실행해 본 조직인지, 아래 근거로 보여드립니다.`),
   })
 
-  slide.addText(intro || `${data.companyName}는 유사 사업 수행 경험을 바탕으로 본 사업을 수행합니다.`, {
+  slide.addText(intro || `${josa(data.companyName, '은', '는')} 유사 사업 수행 경험을 바탕으로 본 사업을 수행합니다.`, {
     x: MARGIN, y: top, w: BODY_W, h: 0.9,
     fontFace: FONT, fontSize: 12, color: pal.ink, lineSpacingMultiple: 1.45, valign: 'top',
   })
