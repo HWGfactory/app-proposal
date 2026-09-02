@@ -121,7 +121,10 @@ function detectPageLimit(lines: RfpLine[]): number | null {
 // "1. 사업 배경 및 목적" 아래의 서술 문단. 고객이 왜 이 사업을 하는지가 적힌
 // 유일한 곳이라, Win Theme의 공감 근거가 된다.
 const BACKGROUND_HEADING = /배경|목적|추진\s*방향|현황|필요성/
-const HEADING_LIKE = /^(?:\d+(?:\.\d+)*[.)]?|[ⅠⅡⅢⅣⅤⅥⅦⅧⅨⅩ]+[.)]?)\s*\S/
+// "제2절 추진 배경 및 목적"도 제목이다. 이 형식을 빼 두면 배경 문단에 아예
+// 들어가지 못해, 고객이 스스로 적어 둔 현황 수치를 하나도 읽지 못한다.
+// analyze.ts가 쓰는 것과 같은 패턴이라 두 파일이 같은 문서를 같게 읽는다.
+const HEADING_LIKE = /^(?:\d+(?:\.\d+)*[.)]?|[ⅠⅡⅢⅣⅤⅥⅦⅧⅨⅩ]+[.)]?|제\s*\d+\s*[장절항])\s*\S/
 const MAX_BACKGROUND = 4
 
 function extractBackground(lines: RfpLine[]): BackgroundLine[] {
