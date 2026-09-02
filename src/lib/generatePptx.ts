@@ -507,6 +507,17 @@ function addCover(pptx: Pptx, pal: BrandPalette, data: ProposalFormData) {
  * 다루는지 미리 알린다. 목차에서 만든 장 목록을 그대로 받아 쓰므로 두 곳이
  * 어긋날 수 없다.
  */
+// 논지가 전개되는 순서. STEP의 선언 순서와 다르므로 따로 둔다. 간지의 진행
+// 표시는 독자가 읽는 차례를 말해야 하고, 그 차례는 조립부의 호출 순서다.
+const STEP_SEQUENCE: string[] = [STEP.기준, STEP.문제, STEP.근거, STEP.실행]
+
+/** 카드 열 수. 장이 적으면 크게 펼치고, 많으면 격자로 접는다. */
+function dividerColumns(count: number): number {
+  if (count <= 3) return count
+  if (count <= 6) return 3
+  return 4
+}
+
 function addStepDivider(pptx: Pptx, pal: BrandPalette, step: string, chapters: string[]) {
   // 장이 하나뿐이면 간지가 예고할 것이 그 장 하나다. 슬라이드 한 장을 써서
   // 다음 장의 제목만 말하게 되므로 만들지 않는다.
@@ -515,7 +526,26 @@ function addStepDivider(pptx: Pptx, pal: BrandPalette, step: string, chapters: s
   const slide = newSlide(pptx)
   slide.background = { color: pal.band }
 
-  const titleY = 0.95
+  // 진행 표시. 네 단계 가운데 지금 어디인지를 보이면, 비어 있던 윗공간이
+  // 정보가 된다. 간지가 만들어지지 않는 단계도 논지에는 있으므로 네 칸을
+  // 모두 그린다.
+  const at = STEP_SEQUENCE.indexOf(step)
+  const barGap = 0.12
+  const barW = (BODY_W - barGap * (STEP_SEQUENCE.length - 1)) / STEP_SEQUENCE.length
+  STEP_SEQUENCE.forEach((_, i) => {
+    slide.addShape('rect', {
+      x: MARGIN + (barW + barGap) * i, y: 0.55, w: barW, h: 0.07,
+      fill: { color: i < at ? pal.brandMid : i === at ? pal.brand : pal.line },
+    })
+  })
+  if (at >= 0) {
+    slide.addText(`STEP ${at + 1} / ${STEP_SEQUENCE.length}`, {
+      x: MARGIN, y: 0.74, w: BODY_W, h: 0.24,
+      fontFace: FONT, fontSize: 10, color: pal.gray,
+    })
+  }
+
+  const titleY = 1.02
   slide.addShape('rect', { x: MARGIN, y: titleY, w: 0.06, h: 0.62, fill: { color: pal.brand } })
   slide.addText(step, {
     x: MARGIN + 0.32, y: titleY, w: BODY_W - 0.32, h: 0.62,
@@ -525,25 +555,38 @@ function addStepDivider(pptx: Pptx, pal: BrandPalette, step: string, chapters: s
   // 절이 맡은 역할을 설명하는 부제는 두지 않는다. 간지는 다음에 무엇이
   // 오는지만 말하면 되고, 그 이상은 문서가 스스로를 해설하는 문장이 된다.
 
-  // 장 목록. 실행 역량처럼 열 장 넘게 붙는 절이 있어 높이를 고정하면 넘친
-  // 줄이 제목 위로 올라온다. 남은 높이를 세어 간격을 잡고, 한 단에 담기지
-  // 않으면 두 단으로 나눈다.
-  const listTop = titleY + 0.95
-  const available = H - 0.5 - listTop
-  const single = Math.floor(available / 0.34)
-  const cols = chapters.length <= single ? 1 : 2
-  const perCol = Math.ceil(chapters.length / cols)
-  const pitch = Math.min(0.34, available / perCol)
-  const colW = cols === 1 ? BODY_W - 0.42 : (BODY_W - 0.42 - 0.4) / 2
+  // 장 카드. 한 단계에 두 장만 붙기도 하고 열 장 넘게 붙기도 해서, 열 수와
+  // 카드 높이를 장 수에서 계산한다. 높이에 상한을 두지 않으면 장이 적을 때
+  // 카드가 한 장짜리 띠처럼 늘어지고, 중앙 정렬을 하지 않으면 남는 공간이
+  // 전부 아래에 몰려 지금과 같은 빈 페이지가 된다.
+  //
+  // 카드에 번호는 달지 않는다. 조건부로 빠지는 장과 곁번호 때문에 본문
+  // eyebrow의 번호와 맞출 수 없고, 어긋난 번호는 없는 번호보다 나쁘다.
+  const cardTop = 2.05
+  const available = H - 0.45 - cardTop
+  const gap = 0.22
+  const cols = dividerColumns(chapters.length)
+  const rows = Math.ceil(chapters.length / cols)
+  const cardW = (BODY_W - gap * (cols - 1)) / cols
+  const cardH = Math.min(1.7, (available - gap * (rows - 1)) / rows)
+  const blockTop = cardTop + (available - (cardH * rows + gap * (rows - 1))) / 2
 
   chapters.forEach((label, i) => {
-    const col = Math.floor(i / perCol)
+    const x = MARGIN + (cardW + gap) * (i % cols)
+    const y = blockTop + (cardH + gap) * Math.floor(i / cols)
+
+    slide.addShape('rect', {
+      x, y, w: cardW, h: cardH,
+      fill: { color: pal.white }, line: { color: pal.line, width: 1 },
+    })
+    // 번호를 대신하는 표식. 카드마다 같은 자리에 놓여 눈이 걸릴 곳을 만든다.
+    slide.addShape('rect', { x: x + 0.18, y: y + 0.18, w: 0.42, h: 0.05, fill: { color: pal.brand } })
+    // 카드가 클수록 제목이 위에 붙어 카드 안이 비어 보인다. 표식 아래 남은
+    // 자리에 가운데로 세워, 장이 셋일 때도 열일 때도 같은 무게로 읽히게 한다.
     slide.addText(label, {
-      x: MARGIN + 0.42 + (colW + 0.4) * col,
-      y: listTop + pitch * (i - perCol * col),
-      w: colW, h: pitch,
-      fontFace: FONT, fontSize: 12, color: pal.ink, valign: 'middle',
-      bullet: { code: '25AA' },
+      x: x + 0.18, y: y + 0.34, w: cardW - 0.36, h: cardH - 0.52,
+      fontFace: FONT, fontSize: cols >= 4 ? 11 : 15, bold: true, color: pal.brandDeep,
+      valign: 'middle',
     })
   })
 }
