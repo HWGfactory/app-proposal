@@ -102,11 +102,33 @@ function joinLine(line: Array<{ str: string; x: number; w: number; h: number }>)
   return out.replace(/\s+/g, ' ').trim()
 }
 
-export async function extractPdfText(file: File): Promise<ExtractedRfp> {
-  const pdfjs = await loadPdfjs()
+/** 이 파일이 pdfjs에서 실제로 쓰는 부분만 적은 최소 형태. */
+export interface PdfjsLike {
+  getDocument(src: { data: ArrayBuffer | Uint8Array }): {
+    promise: Promise<{
+      numPages: number
+      getPage(pageNumber: number): Promise<{
+        getTextContent(): Promise<{ items: unknown[] }>
+      }>
+    }>
+  }
+}
 
-  const arrayBuffer = await file.arrayBuffer()
-  const doc = await pdfjs.getDocument({ data: arrayBuffer }).promise
+/**
+ * 이미 불러온 pdfjs로 텍스트를 뽑는다. 모듈을 밖에서 받는 입구다.
+ *
+ * Node에서는 위의 loadPdfjs()가 쓸 수 없다. 'pdfjs-dist' 메인 엔트리는
+ * DOMMatrix를 찾다 죽고(pdfjs 자신이 legacy 빌드를 쓰라고 경고한다),
+ * workerSrc의 '/pdf.worker.min.mjs'는 웹 공개 경로라 파일 시스템에는 없다.
+ * 그렇다고 여기에 Node 분기를 넣으면 legacy 빌드가 클라이언트 번들에
+ * 딸려 들어간다. 그래서 모듈 선택은 호출부에 맡기고, 줄 재구성 로직만
+ * 공유한다. 브라우저와 배치의 결과가 같아야 하는 부분은 그쪽이다.
+ */
+export async function extractPdfTextWith(
+  pdfjs: PdfjsLike,
+  data: ArrayBuffer | Uint8Array
+): Promise<ExtractedRfp> {
+  const doc = await pdfjs.getDocument({ data }).promise
 
   const pages: RfpPage[] = []
   const lines: RfpLine[] = []
@@ -131,4 +153,10 @@ export async function extractPdfText(file: File): Promise<ExtractedRfp> {
     lines,
     fullText: pages.map((p) => p.text).join('\n'),
   }
+}
+
+/** 브라우저 경로. 종전과 동일하다. */
+export async function extractPdfText(file: File): Promise<ExtractedRfp> {
+  const pdfjs = await loadPdfjs()
+  return extractPdfTextWith(pdfjs, await file.arrayBuffer())
 }
