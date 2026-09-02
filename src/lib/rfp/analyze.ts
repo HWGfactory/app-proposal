@@ -22,6 +22,8 @@ export interface RfpEvaluationItem {
   page: number
   label: string
   score: number | null
+  /** 배점의 단위. 없으면 '점'으로 본다. 가중치를 %로 적는 RFP가 있어 구분한다 */
+  unit?: '점' | '%'
 }
 
 export interface RfpMeta {
@@ -50,6 +52,15 @@ const HEADING_PATTERN = /^(\d+(?:\.\d+)*)(?:[.)]\s*|\s+)(.{1,40})$/
 // ASCII 로마숫자는 영단어와 헷갈리므로 마침표/괄호를 반드시 요구한다.
 const ROMAN_HEADING_PATTERN = /^(?:([ⅠⅡⅢⅣⅤⅥⅦⅧⅨⅩ]+)[.)]?|([IVX]{1,5})[.)])\s*(.{1,40})$/
 
+// "제4장 제안서 평가", "제2절 비기능 요구사항" — 기업 RFP가 즐겨 쓰는 제목 형식이다.
+// 위 두 패턴이 모두 실패했을 때만 본다.
+//
+// 장과 절을 모두 대제목으로 취급한다. 절을 하위 제목으로 두면 "제2절 제출 안내"에서
+// 평가 문맥이 꺼지지 않아, 제출 안내 목록이 평가 항목으로 실려 들어온다. 절 제목이
+// 문맥을 스스로 밝히지 않는 문서에서는 요구사항을 놓칠 수 있으나, 실제로 확인된
+// 손해를 막는 쪽을 택했다.
+const CHAPTER_HEADING = /^제\s*(\d+)\s*(?:장|절|항)\s+(.{1,40})$/
+
 // "- ", "• ", "가. ", "1) " 등 목록 항목 표시.
 // ※는 각주·단서 표시라 목록에서 제외한다 (배점 각주가 평가 항목으로 잡히는 것을 막는다).
 const BULLET_PATTERN = /^(?:[-–—•·○□▪]|[가-하]\.|\d+[).]|[①-⑳])\s*/
@@ -64,8 +75,25 @@ const SCORE_PATTERN = /(\d+(?:\.\d+)?)\s*점/
 // 표를 한 줄로 펼치면 "기술 능력시스템아키텍처 및 연계 방안15" 형태가 된다.
 const TABLE_SCORE_PATTERN = /^(.*[^\d\s])\s*(\d{1,3})$/
 
+// "사업 이해 사업 목표 및 현황에 대한 이해도 10%" — 배점을 점이 아니라 가중치(%)로
+// 적는 RFP가 있다. 위 패턴은 숫자로 끝나는 줄만 보므로 %로 끝나는 줄은 하나도
+// 걸리지 않는다. 두 패턴은 끝 글자가 서로 달라 겹치지 않는다.
+//
+// "기술평가 점수가 만점의 80% 미만인 제안사는 … 제외한다."처럼 문장 가운데 %가
+// 있는 줄은 끝이 %가 아니므로 걸리지 않는다.
+const PERCENT_ROW_PATTERN = /^(.*[^\d\s])\s*(\d{1,3}(?:\.\d+)?)\s*%$/
+
 // 배점표의 소계·합계 행은 평가 항목이 아니다.
 const SUBTOTAL_PATTERN = /소계|합계|총점|총계/
+
+// "FR-001 입고 관리", "NFR-002 가용성 시스템 연간 가용률 99.5% 이상" — 요구사항을
+// 코드가 붙은 표로 적는 RFP가 있다. 이런 줄은 의무 표현("~하여야 한다")도 목록
+// 기호도 없어서 기존 두 규칙에 걸리지 않는다.
+//
+// 표에서 상세 설명이 코드 줄 위아래로 쪼개져 명칭만 남는 경우가 있다. 그래도
+// 버리지 않는다. 어느 설명 줄이 어느 코드의 것인지 확정할 근거가 없어, 붙였다가
+// 틀리면 없는 요구사항을 만들게 된다.
+const REQUIREMENT_CODE_PATTERN = /^(FR|NFR|REQ|SR)[-\s]?(\d+)\s+(.*)$/i
 
 // 제목에 등장하면 이후 목록을 요구사항 / 평가 항목으로 간주하는 키워드.
 const REQUIREMENT_HEADING = /요구\s*사항|요구\s*조건|과업\s*내용|과업\s*범위/
@@ -83,6 +111,33 @@ const META_RULES: Array<{ key: keyof RfpMeta; pattern: RegExp }> = [
 
 // 표 한 칸이 아니라 본문 문단을 통째로 값으로 삼는 것을 막는다.
 const META_MAX_LENGTH = 80
+
+/**
+ * 사업 정보를 표가 아니라 서술형 문장에 적은 RFP를 위한 뒷받침 규칙.
+ *
+ * "본 사업의 명칭은 「…」이며, 발주기관은 대한물류주식회사이다."처럼 한 문장에
+ * 여러 값이 들어 있고, PDF에서는 그 문장이 줄 경계를 넘어 쪼개져 있다. 그래서
+ * 한 줄씩 보는 META_RULES로는 하나도 잡히지 않는다.
+ *
+ * 표 형식으로 이미 찾은 항목에는 손대지 않는다. 이 규칙은 못 찾은 항목에만 돈다.
+ *
+ * 과탐을 막는 것은 앵커다. "명칭은" "발주기관은" 같은 말이 앞에 반드시 있어야
+ * 하며, 캡처는 게으른 수량자로 첫 종결어미에서 끊고, 길이 상한을 다시 건다.
+ */
+const NARRATIVE_META_RULES: Array<{ key: keyof RfpMeta; patterns: RegExp[] }> = [
+  {
+    key: 'projectName',
+    // 낫표 안에 사업명을 넣는 것이 관례이므로 그것을 먼저 본다.
+    patterns: [/명칭은\s*「([^」]+)」/, /명칭은\s*(.+?)(?:이며|이고|으로\s*한다|입니다)/],
+  },
+  { key: 'client', patterns: [/발주\s*기관은\s*(.+?)(?:이다|이며|입니다|로\s*한다)/] },
+  { key: 'budget', patterns: [/사업\s*예산은\s*([\d억천만원,.\s]+(?:\([^)]*\))?)/] },
+  { key: 'duration', patterns: [/사업\s*기간은\s*(.+?)(?:간으로|으로\s*한다|이다)/] },
+]
+
+// 값이 줄을 넘어가므로 이웃한 줄을 이어 붙여 본다. 줄 사이에는 공백을 넣어야
+// "발주기관은" + "대한물류…"가 한 낱말로 붙지 않는다.
+const NARRATIVE_WINDOW = 3
 
 // ── 내부 헬퍼 ────────────────────────────────────────────────────────────────
 
@@ -156,7 +211,34 @@ function extractMeta(lines: RfpLine[]): RfpMeta {
     }
   }
 
+  fillFromNarrative(meta, lines)
   return meta
+}
+
+/** 표 형식으로 못 찾은 항목만 서술형 문장에서 채운다. 찾은 항목은 건드리지 않는다. */
+function fillFromNarrative(meta: RfpMeta, lines: RfpLine[]): void {
+  const missing = NARRATIVE_META_RULES.filter((rule) => meta[rule.key] === null)
+  if (missing.length === 0) return
+
+  for (let i = 0; i < lines.length; i++) {
+    const window = lines
+      .slice(i, i + NARRATIVE_WINDOW)
+      .map((l) => l.text)
+      .join(' ')
+
+    for (const rule of missing) {
+      if (meta[rule.key] !== null) continue
+      for (const pattern of rule.patterns) {
+        const match = window.match(pattern)
+        if (!match) continue
+        const value = match[1].trim().replace(/[,.]+$/, '').trim()
+        if (value && value.length <= META_MAX_LENGTH) {
+          meta[rule.key] = value
+          break
+        }
+      }
+    }
+  }
 }
 
 // ── 메인 ─────────────────────────────────────────────────────────────────────
@@ -173,11 +255,12 @@ export function analyzeRfp(extracted: ExtractedRfp): RfpAnalysisResult {
   for (const line of extracted.lines) {
     const numbered = line.text.match(HEADING_PATTERN)
     const roman = numbered ? null : line.text.match(ROMAN_HEADING_PATTERN)
+    const chapter = numbered || roman ? null : line.text.match(CHAPTER_HEADING)
 
-    if (numbered || roman) {
-      // 로마숫자 제목은 언제나 대제목이므로 하위 번호가 없는 것으로 취급한다.
+    if (numbered || roman || chapter) {
+      // 로마숫자·장절 제목은 언제나 대제목이므로 하위 번호가 없는 것으로 취급한다.
       const number = numbered ? numbered[1] : ''
-      const title = numbered ? numbered[2] : roman![3]
+      const title = numbered ? numbered[2] : roman ? roman[3] : chapter![2]
 
       if (REQUIREMENT_HEADING.test(title)) {
         context = 'requirement'
@@ -220,6 +303,19 @@ export function analyzeRfp(extracted: ExtractedRfp): RfpAnalysisResult {
         })
         continue
       }
+
+      // 배점을 가중치(%)로 적은 배점표 행.
+      const percentRow = !isBullet ? body.match(PERCENT_ROW_PATTERN) : null
+      if (percentRow && !SUBTOTAL_PATTERN.test(percentRow[1])) {
+        evaluations.push({
+          id: `eval-${(seq += 1)}`,
+          page: line.page,
+          label: percentRow[1].trim(),
+          score: Number(percentRow[2]),
+          unit: '%',
+        })
+        continue
+      }
     }
 
     if (context === 'evaluation' && isBullet) {
@@ -229,6 +325,23 @@ export function analyzeRfp(extracted: ExtractedRfp): RfpAnalysisResult {
         label: cleanEvaluationLabel(body),
         score: extractScore(body),
       })
+      continue
+    }
+
+    // 요구코드로 시작하는 표 행. 의무 표현도 목록 기호도 없어 아래 규칙에 걸리지 않는다.
+    const code = body.match(REQUIREMENT_CODE_PATTERN)
+    if (code) {
+      const text = code[3].trim()
+      if (text && !seenRequirements.has(text)) {
+        seenRequirements.add(text)
+        requirements.push({
+          id: `req-${(seq += 1)}`,
+          page: line.page,
+          // 코드가 유형을 직접 말해 주므로 제목 문맥보다 우선한다.
+          kind: /^N/i.test(code[1]) ? '비기능' : '기능',
+          text,
+        })
+      }
       continue
     }
 
