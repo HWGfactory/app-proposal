@@ -1865,41 +1865,69 @@ const NEXT_STEPS = [
 
 function addNextSteps(pptx: Pptx, pal: BrandPalette, data: ProposalFormData, num: Numbering) {
   const { slide, top } = contentSlide(pptx, pal, {
-    title: '다음 단계', eyebrow: `${num.next()} · ${STEP.실행}`,
+    title: '다음 단계',
+    eyebrow: `${num.next()} · ${STEP.실행}`,
+    // 문서를 해설하는 문장이 아니라 절차를 말하는 문장이다. 단계 수는 아래
+    // 목록에서 온다.
+    lead: `제안서 제출 이후 사업 착수까지는 아래 ${NEXT_STEPS.length}단계로 진행됩니다.`,
   })
 
+  // 문의처를 바닥에 먼저 앉히고, 남은 자리 한가운데에 카드를 세운다. 카드를
+  // 위에서부터 쌓으면 카드 아래가 통째로 비어 빈 페이지처럼 읽힌다.
+  const contactH = 0.75
+  const contactY = H - 0.45 - contactH
+  const cardH = 1.55
+  const numberH = 0.34
+  const available = contactY - 0.3 - top
+  const blockTop = top + (available - (numberH + cardH)) / 2
+  const cardY = blockTop + numberH
+
   const cardW = (BODY_W - 0.28 * (NEXT_STEPS.length - 1)) / NEXT_STEPS.length
-  const cardY = top + 0.45
   NEXT_STEPS.forEach((s, i) => {
     const x = MARGIN + (cardW + 0.28) * i
 
     // 진행 방향을 화살촉 대신 이어지는 가로선으로 표시한다.
     if (i > 0) {
       slide.addShape('rect', {
-        x: x - 0.28, y: cardY + 0.62, w: 0.28, h: 0.016, fill: { color: pal.line },
+        x: x - 0.28, y: cardY + cardH / 2, w: 0.28, h: 0.016, fill: { color: pal.line },
       })
     }
     slide.addText(String(i + 1).padStart(2, '0'), {
-      x, y: cardY - 0.42, w: cardW, h: 0.34,
+      x, y: blockTop, w: cardW, h: numberH,
       fontFace: FONT, fontSize: 15, bold: true, color: pal.brandMid,
     })
     slide.addText(
       [
         { text: s.step, options: { bold: true, fontSize: 13, color: pal.brandDeep, breakLine: true } },
-        { text: s.ours, options: { fontSize: 9, color: pal.gray } },
+        { text: s.ours, options: { fontSize: 10, color: pal.gray } },
       ],
       {
-        x, y: cardY, w: cardW, h: 1.25,
+        x, y: cardY, w: cardW, h: cardH,
         shape: 'rect', fill: { color: pal.band }, line: { color: pal.line, width: 1 },
         fontFace: FONT, align: 'center', valign: 'middle',
       }
     )
   })
 
+  // 문의처. 마지막 장의 마지막 줄이 홀로 떠 있으면 문서가 끝난 느낌이 나지
+  // 않는다. 상자로 감싸 무게를 준다. 날짜는 적지 않는다. 제안요청서에서 읽어
+  // 온 일정 필드가 없어, 여기 적는 순간 틀린 값이 된다.
   const contact = data.preparedBy || data.companyName
+  slide.addShape('rect', {
+    x: MARGIN, y: contactY, w: BODY_W, h: contactH,
+    fill: { color: pal.band }, line: { color: pal.line, width: 1 },
+  })
+  slide.addShape('rect', { x: MARGIN, y: contactY, w: 0.06, h: contactH, fill: { color: pal.brand } })
+  slide.addText('문의처', {
+    x: MARGIN + 0.3, y: contactY + 0.12, w: BODY_W - 0.6, h: 0.24,
+    fontFace: FONT, fontSize: 10, bold: true, color: pal.brand,
+  })
   slide.addText(
     `${data.rfp.projectName || '본 사업'}에 대한 문의는 ${josa(contact, '으로', '로')} 연락 주시기 바랍니다.`,
-    { x: MARGIN, y: H - 0.95, w: BODY_W, h: 0.35, fontFace: FONT, fontSize: 11, color: pal.ink }
+    {
+      x: MARGIN + 0.3, y: contactY + 0.36, w: BODY_W - 0.6, h: 0.3,
+      fontFace: FONT, fontSize: 11, color: pal.ink,
+    }
   )
 }
 
