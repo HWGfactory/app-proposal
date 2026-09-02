@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import type { ProposalFormData, RfpSource, WinThemeSelection } from '@/types/proposal'
-import AppShell from '@/components/AppShell'
+import AppShell, { type ShellStep } from '@/components/AppShell'
 import HomeHero from '@/components/HomeHero'
 import ProposerForm from '@/components/ProposerForm'
 import LoadingScreen from '@/components/LoadingScreen'
@@ -53,6 +53,9 @@ export default function HomePage() {
       const url = URL.createObjectURL(blob)
       const name = `APP_제안서_${formData.rfp.client || formData.rfp.projectName || '제안'}_${formData.preparedDate}.pptx`
 
+      // 다운로드 단계에서 되돌아가 다시 생성할 수 있게 되었으므로, 앞서 만든
+      // 것을 여기서 놓아준다. 예전에는 handleReset이 유일한 출구였다.
+      if (downloadUrl) URL.revokeObjectURL(downloadUrl)
       setDownloadUrl(url)
       setFileName(name)
       setStep('done')
@@ -62,6 +65,15 @@ export default function HomePage() {
       setStep('form')
     }
   }
+
+  // 단계 표시에서 되돌아갈 수 있는 곳. 지나온 자취가 아니라 가진 데이터로 정한다.
+  // 아래 렌더가 데이터 없는 단계를 아무것도 그리지 않으므로, 데이터에 묶어야
+  // 빈 화면으로 이동하는 일이 생기지 않는다. 'loading'은 지나가는 단계라 넣지 않는다.
+  const reached: ShellStep[] = ['upload']
+  if (rfpResult && rfpBrief) reached.push('analysis')
+  if (rfpSource) reached.push('wintheme')
+  if (winTheme) reached.push('form')
+  if (downloadUrl) reached.push('done')
 
   const handleReset = () => {
     if (downloadUrl) URL.revokeObjectURL(downloadUrl)
@@ -91,7 +103,7 @@ export default function HomePage() {
   }
 
   return (
-    <AppShell step={step} onReset={handleReset}>
+    <AppShell step={step} reached={reached} onNavigate={setStep} onReset={handleReset}>
       {step === 'upload' && (
         <RfpUploader
           onAnalyzed={(analyzed, brief, name, lines) => {

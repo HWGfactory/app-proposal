@@ -3,13 +3,24 @@
 // 앱 셸: 블랙 상단 바 + (선택) 4단계 표시 + 본문 + 푸터.
 // 좌측 사이드바(Sidebar.tsx)를 대체한다.
 
+/** 셸이 아는 단계. page.tsx의 Step은 여기에 'home'을 더한 것이다. */
+export type ShellStep = 'upload' | 'analysis' | 'wintheme' | 'form' | 'loading' | 'done'
+type Step = ShellStep
+
 interface Props {
-  step: 'upload' | 'analysis' | 'wintheme' | 'form' | 'loading' | 'done'
+  step: Step
+  /**
+   * 되돌아갈 수 있는 단계. 현재 위치가 아니라 가진 데이터로 정한다.
+   * 뒤로 이동하면 step은 앞으로 당겨지므로 그것만으로는 어디까지 갔는지 알 수 없고,
+   * 데이터 없이 이동하면 본문이 아무것도 렌더하지 않아 빈 화면이 된다.
+   */
+  reached: Step[]
+  onNavigate: (step: Step) => void
   onReset: () => void
   children: React.ReactNode
 }
 
-const FLOW: { label: string; steps: Props['step'][] }[] = [
+const FLOW: { label: string; steps: Step[] }[] = [
   { label: 'RFP 업로드', steps: ['upload', 'analysis'] },
   { label: 'Win Theme', steps: ['wintheme'] },
   { label: '제안서 작성', steps: ['form'] },
@@ -27,9 +38,15 @@ function Check() {
   )
 }
 
-export default function AppShell({ step, onReset, children }: Props) {
+export default function AppShell({ step, reached, onNavigate, onReset, children }: Props) {
   const activeIndex = FLOW.findIndex((f) => f.steps.includes(step))
   const dark = step === 'loading'
+
+  // 한 칸이 화면 둘을 묶는 경우("RFP 업로드" = 업로드·분석)에는 뒤쪽을 고른다.
+  // 분석 결과가 있는데 업로드 화면으로 보내면 작업이 날아간 것처럼 보인다.
+  // 다시 올리는 길은 분석 화면의 "다른 파일 분석"에 있다.
+  const targetOf = (steps: Step[]) =>
+    [...steps].reverse().find((s) => reached.includes(s)) ?? null
 
   return (
     <div className={`min-h-screen flex flex-col ${dark ? 'bg-ink-900' : 'bg-surface'}`}>
@@ -64,20 +81,18 @@ export default function AppShell({ step, onReset, children }: Props) {
       {/* 4단계 표시 — 생성 중에는 감춘다 */}
       {!dark && (
         <div className="h-11 bg-surface-card border-b border-line flex items-center justify-center gap-5 shrink-0">
-          {FLOW.map((f, i) => (
-            <div key={f.label} className="flex items-center gap-5">
-              {i > 0 && (
-                <span className={`w-7 h-px ${i <= activeIndex ? 'bg-brand-500' : 'bg-line'}`} />
-              )}
-              <span
-                className={`flex items-center gap-[7px] text-xs ${
-                  i === activeIndex
-                    ? 'text-ink-900 font-medium'
-                    : i < activeIndex
-                    ? 'text-ink-500'
-                    : 'text-ink-400'
-                }`}
-              >
+          {FLOW.map((f, i) => {
+            const target = targetOf(f.steps)
+            // 지금 있는 칸을 눌러도 갈 곳이 없으므로 누를 수 있게 두지 않는다.
+            const clickable = target !== null && i !== activeIndex
+            const tone =
+              i === activeIndex
+                ? 'text-ink-900 font-medium'
+                : i < activeIndex
+                ? 'text-ink-500'
+                : 'text-ink-400'
+            const inner = (
+              <>
                 {i < activeIndex ? (
                   <Check />
                 ) : (
@@ -86,9 +101,28 @@ export default function AppShell({ step, onReset, children }: Props) {
                   />
                 )}
                 {f.label}
-              </span>
-            </div>
-          ))}
+              </>
+            )
+
+            return (
+              <div key={f.label} className="flex items-center gap-5">
+                {i > 0 && (
+                  <span className={`w-7 h-px ${i <= activeIndex ? 'bg-brand-500' : 'bg-line'}`} />
+                )}
+                {clickable ? (
+                  <button
+                    type="button"
+                    onClick={() => onNavigate(target)}
+                    className={`flex items-center gap-[7px] text-xs ${tone} hover:text-ink-900 transition-colors`}
+                  >
+                    {inner}
+                  </button>
+                ) : (
+                  <span className={`flex items-center gap-[7px] text-xs ${tone}`}>{inner}</span>
+                )}
+              </div>
+            )
+          })}
         </div>
       )}
 
