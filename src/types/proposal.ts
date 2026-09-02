@@ -17,6 +17,8 @@ export interface EvaluationCriterion {
   label: string
   score: number | null
   page: number
+  /** 배점의 단위. 없으면 '점'. 가중치를 %로 적는 제안요청서가 있어 구분한다 */
+  unit?: '점' | '%'
 }
 
 export interface RfpSource {

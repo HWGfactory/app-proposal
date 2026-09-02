@@ -90,6 +90,7 @@ export function buildRfpSource(
       label: item.label,
       score: item.score,
       page: item.page,
+      ...(item.unit ? { unit: item.unit } : {}),
     })),
 
     ...(brief

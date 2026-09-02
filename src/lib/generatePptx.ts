@@ -361,6 +361,33 @@ function metricPhrase(text: string): string {
     .trim()
 }
 
+/**
+ * 배점의 단위. 제안요청서가 배점을 점이 아니라 가중치(%)로 적는 경우가 있어,
+ * 숫자에 단위를 붙이는 자리에서는 반드시 이 값을 물어봐야 한다. 30%를 30점이라
+ * 적으면 발주기관이 자기 평가표를 잘못 옮긴 문서를 받게 된다.
+ *
+ * 단위가 없으면 '점'이다. 예전 방식으로 만들어진 데이터가 그대로 동작한다.
+ *
+ * 주의: 이것은 EvaluationFocus의 sharePct와 다른 값이다. sharePct는 전체 배점
+ * 가운데 그 항목이 차지하는 비중이라 배점이 점이든 %이든 언제나 %다.
+ */
+function scoreUnit(item: { unit?: '점' | '%' }): string {
+  return item.unit ?? '점'
+}
+
+/**
+ * 문서 전체의 배점 단위. 합계 문장이나 차트처럼 개별 항목이 손에 없는 자리에서 쓴다.
+ * 한 평가표 안에 점과 %가 섞이는 일은 실무에 없으므로, 하나라도 %면 %로 본다.
+ */
+function deckScoreUnit(data: ProposalFormData): string {
+  return data.rfp.evaluations.some((e) => e.unit === '%') ? '%' : '점'
+}
+
+/** '배점'과 '가중치'처럼 단위에 따라 달라지는 이름 */
+function scoreNoun(unit: string): string {
+  return unit === '%' ? '가중치' : '배점'
+}
+
 function tableHeader(pal: BrandPalette, labels: string[]) {
   return labels.map((text) => ({
     text,
@@ -563,7 +590,7 @@ function addWinTheme(pptx: Pptx, pal: BrandPalette, data: ProposalFormData) {
     [
       STEP.기준,
       topCriterion
-        ? `제안요청서가 정한 평가 기준. 배점이 가장 큰 항목은 ${displayLabel(topCriterion.label)}(${topCriterion.score}점)입니다.`
+        ? `제안요청서가 정한 평가 기준. ${josa(scoreNoun(scoreUnit(topCriterion)), '이', '가')} 가장 큰 항목은 ${displayLabel(topCriterion.label)}(${topCriterion.score}${scoreUnit(topCriterion)})입니다.`
         : '제안요청서가 정한 평가 기준과 요구 조건',
     ],
     [STEP.근거, proof.length > 0 ? proof.map((p) => quote(p.text)).join(' / ') : '제안요청서 요구사항 전건 대응'],
@@ -837,8 +864,9 @@ function addScoreChart(pptx: Pptx, pal: BrandPalette, data: ProposalFormData, nu
   const total = scored.reduce((s, e) => s + e.score, 0)
   const top = scored[scored.length - 1]
 
+  const unit = deckScoreUnit(data)
   const { slide } = contentSlide(pptx, pal, {
-    title: '배점 구성',
+    title: `${scoreNoun(unit)} 구성`,
     eyebrow: `${num.next()} · ${STEP.근거}`,
   })
 
@@ -857,7 +885,7 @@ function addScoreChart(pptx: Pptx, pal: BrandPalette, data: ProposalFormData, nu
 
   slide.addChart(
     'bar',
-    [{ name: '배점', labels, values: scored.map((e) => e.score) }],
+    [{ name: scoreNoun(unit), labels, values: scored.map((e) => e.score) }],
     {
       x: MARGIN, y: 1.5, w: BODY_W, h: 3.2,
       barDir: 'bar',
@@ -879,7 +907,7 @@ function addScoreChart(pptx: Pptx, pal: BrandPalette, data: ProposalFormData, nu
       valAxisLabelColor: pal.gray,
       valAxisLabelFontFace: FONT,
       valAxisLabelFontSize: 9,
-      // 배점에 음수는 없다. 최소값을 두지 않으면 축이 -10에서 시작한다.
+      // 배점이든 가중치든 음수는 없다. 최소값을 두지 않으면 축이 -10에서 시작한다.
       valAxisMinVal: 0,
       valAxisMaxVal: Math.ceil((top.score * 1.15) / 5) * 5,
       catGridLine: { style: 'none' },
@@ -888,12 +916,16 @@ function addScoreChart(pptx: Pptx, pal: BrandPalette, data: ProposalFormData, nu
   )
 
   slide.addText(
-    `확인된 배점 ${total}점 가운데 ${josa(stripTells(displayLabel(top.label)), '이', '가')} ${top.score}점으로 가장 큽니다.`,
+    // 단위마다 뒤에 붙는 조사가 다르다("25점으로" / "30%로"). 문장을 통째로 나눈다.
+    unit === '%'
+      ? `확인된 가중치 합계 ${total}% 가운데 ${josa(stripTells(displayLabel(top.label)), '이', '가')} ${top.score}%로 가장 큽니다.`
+      : `확인된 배점 ${total}점 가운데 ${josa(stripTells(displayLabel(top.label)), '이', '가')} ${top.score}점으로 가장 큽니다.`,
     { x: MARGIN, y: H - 0.8, w: BODY_W, h: 0.32, fontFace: FONT, fontSize: 10, color: pal.gray }
   )
 }
 
 function addEvaluation(pptx: Pptx, pal: BrandPalette, data: ProposalFormData, num: Numbering) {
+  const unit = deckScoreUnit(data)
   const evals = [...data.rfp.evaluations].sort((a, b) => (b.score ?? -1) - (a.score ?? -1))
   if (evals.length === 0) return
 
@@ -918,10 +950,12 @@ function addEvaluation(pptx: Pptx, pal: BrandPalette, data: ProposalFormData, nu
   const withEvidence = focus.length > 0
 
   const rows = [
-    tableHeader(pal, withEvidence ? ['평가 항목', '배점', '근거 요구사항'] : ['평가 항목', '배점']),
+    tableHeader(pal, withEvidence
+      ? ['평가 항목', scoreNoun(unit), '근거 요구사항']
+      : ['평가 항목', scoreNoun(unit)]),
     ...evals.map((e) => [
       { text: displayLabel(e.label), options: { bold: true, color: pal.brandDeep } },
-      { text: e.score !== null ? `${e.score}점` : '-', options: { align: 'center' as const, color: pal.ink } },
+      { text: e.score !== null ? `${e.score}${scoreUnit(e)}` : '-', options: { align: 'center' as const, color: pal.ink } },
       ...(withEvidence
         ? [{ text: evidenceOf(e.label) ?? '제안요청서에 직접 근거 없음', options: { color: pal.gray } }]
         : []),
@@ -939,7 +973,7 @@ function addEvaluation(pptx: Pptx, pal: BrandPalette, data: ProposalFormData, nu
 
   if (total > 0) {
     // 배점 순으로 제안을 짰다는 사실은 우리 사정이지 발주기관에 할 말이 아니다.
-    slide.addText(`※ 제안요청서에서 확인한 평가 항목 ${evals.length}개, 배점 합계 ${total}점 기준입니다.`, {
+    slide.addText(`※ 제안요청서에서 확인한 평가 항목 ${evals.length}개, ${scoreNoun(unit)} 합계 ${total}${unit} 기준입니다.`, {
       x: MARGIN, y: H - 0.85, w: BODY_W, h: 0.35,
       fontFace: FONT, fontSize: 10, color: pal.gray,
     })
@@ -955,6 +989,9 @@ function addEvaluation(pptx: Pptx, pal: BrandPalette, data: ProposalFormData, nu
 const EVALUATION_DETAIL_SLIDES = 4
 
 function addEvaluationDetail(pptx: Pptx, pal: BrandPalette, data: ProposalFormData, num: Numbering) {
+  // focus는 strategy가 만들어 단위를 들고 있지 않으므로 문서 단위를 쓴다.
+  const unit = deckScoreUnit(data)
+
   // 근거 요구사항이 없는 항목은 상세 장을 만들지 않는다. 이 장이 할 일이
   // 근거를 펼치는 것인데 펼칠 것이 없으면 배점 숫자만 남은 빈 장이 된다.
   // 가격 평가처럼 기술 요구사항이 있을 수 없는 항목이 여기에 해당한다.
@@ -982,7 +1019,7 @@ function addEvaluationDetail(pptx: Pptx, pal: BrandPalette, data: ProposalFormDa
     // 비중은 타일로 세우지 않는다. 총점이 100점이면 배점과 같은 수가 되어
     // 같은 값이 두 번 서는데, 그 사실은 바로 위 리드 문장이 이미 말했다.
     const cards: [string, string][] = [
-      ['배점', `${item.score}점`],
+      [scoreNoun(unit), `${item.score}${unit}`],
       ...(item.recommendedPages !== null
         ? ([['권장 분량', `${item.recommendedPages}p`]] as [string, string][])
         : []),
@@ -1650,7 +1687,9 @@ function addCost(pptx: Pptx, pal: BrandPalette, data: ProposalFormData, num: Num
   // 숫자가 둘뿐이므로 차트가 아니라 수치 타일로 놓는다.
   const tiles = [
     { label: '제안요청서 명시 사업 예산', value: budget },
-    ...(priceScore ? [{ label: '가격 평가 배점', value: `${priceScore.score}점` }] : []),
+    ...(priceScore
+      ? [{ label: `가격 평가 ${scoreNoun(scoreUnit(priceScore))}`, value: `${priceScore.score}${scoreUnit(priceScore)}` }]
+      : []),
   ]
   const tileW = (BODY_W - 0.3 * (tiles.length - 1)) / tiles.length
   tiles.forEach((t, i) => {
@@ -1788,8 +1827,9 @@ export async function generateProposalPptx(data: ProposalFormData): Promise<Buff
       : []),
     { label: '요구사항 구성', step: STEP.문제 },
     { label: '요구사항 대응 방안', step: STEP.근거 },
+    // 이름은 슬라이드 제목과 같은 곳에서 가져온다. 배점이 %면 그 장은 '가중치 구성'이 된다.
     ...(data.rfp.evaluations.filter((e) => (e.score ?? 0) > 0).length >= 2
-      ? [{ label: '배점 구성', step: STEP.근거 }]
+      ? [{ label: `${scoreNoun(deckScoreUnit(data))} 구성`, step: STEP.근거 }]
       : []),
     { label: '평가 기준별 대응', step: STEP.근거 },
     ...((data.rfp.focus ?? []).some((f) => f.score > 0)
