@@ -103,7 +103,9 @@ const EVALUATION_HEADING = /평가\s*(기준|항목|방법)|배점|가점|심사
 // 표 안의 라벨은 "사 업 명"처럼 글자 사이가 벌어져 오는 경우가 많기 때문이다.
 const META_RULES: Array<{ key: keyof RfpMeta; pattern: RegExp }> = [
   { key: 'projectName', pattern: /^(?:사업|과업|용역)명/ },
-  { key: 'client', pattern: /^(?:발주(?:기관|처|자)|수요기관)/ },
+  // 공공은 "발주기관"을 쓰지만 민간은 "발주사" · "고객사" · "주관사"를 쓴다.
+  // 기존 표현은 그대로 두고 덧붙이기만 한다.
+  { key: 'client', pattern: /^(?:발주(?:기관|처|자|사)|수요(?:기관|처)|주관(?:기관|사)|고객사)/ },
   { key: 'budget', pattern: /^(?:사업예산|총사업비|사업금액|예산)/ },
   { key: 'duration', pattern: /^(?:사업|과업|용역|계약)기간/ },
   { key: 'deadline', pattern: /^(?:제출(?:기한|마감)|접수마감|마감일시)/ },
@@ -111,6 +113,30 @@ const META_RULES: Array<{ key: keyof RfpMeta; pattern: RegExp }> = [
 
 // 표 한 칸이 아니라 본문 문단을 통째로 값으로 삼는 것을 막는다.
 const META_MAX_LENGTH = 80
+
+/**
+ * client 값이 기관명처럼 생겼는지 본다. client에만 건다.
+ *
+ * 라벨은 공백을 지운 문자열에 앵커로 맞춰 보고 그 글자 수만큼 잘라내므로,
+ * 구분자 없이 본문이 이어져도 통과한다. "고객사"·"발주사"는 본문에도 흔한
+ * 말이라 "고객사 여정 지도를 작성하여야 한다"가 발주기관이 되어 버린다.
+ * 기관명은 명사로 끝나고, 본문은 서술어로 끝나거나 조사로 시작한다.
+ *
+ * 종결 어미를 목록으로 나열하지 않은 것은 반드시 빠지는 것이 생기기 때문이다
+ * ("높인다"가 그랬다). 대신 이름이 "다"로 끝나는 외래 사명은 걸러진다.
+ *
+ * 조사 뒤에 공백을 요구하는 것은 "은행연합회"·"이마트"·"의료법인"처럼 조사와
+ * 같은 글자로 시작하는 진짜 이름을 지키기 위해서다.
+ *
+ * 이 검사를 메타 전체에 걸면 안 된다. deadline은 "…인정하지 않는다"로 끝나는
+ * 것이 정상이다.
+ */
+const CLIENT_PREDICATE_END = /(?:[가-힣]다|하며|하고|하여|함|음|임)\.?$/
+const CLIENT_PARTICLE_START = /^[은는이가을를와과의에도만별및측]\s/
+
+function looksLikeClient(value: string): boolean {
+  return !CLIENT_PREDICATE_END.test(value) && !CLIENT_PARTICLE_START.test(value)
+}
 
 /**
  * 사업 정보를 표가 아니라 서술형 문장에 적은 RFP를 위한 뒷받침 규칙.
@@ -204,10 +230,12 @@ function extractMeta(lines: RfpLine[]): RfpMeta {
       // 먼저 나온 값을 우선한다. RFP는 앞부분(표지·개요)에 요약 정보를 두는 것이 관례다.
       if (meta[rule.key] !== null) continue
       const value = valueAfterLabel(line.text, rule.pattern)
-      if (value) {
-        meta[rule.key] = value
-        break
-      }
+      if (!value) continue
+      // 값을 버릴 때는 break가 아니라 continue다. 이 줄이 다른 항목의
+      // 라벨일 수도 있고, client는 뒤에 나오는 진짜 라벨에서 다시 찾는다.
+      if (rule.key === 'client' && !looksLikeClient(value)) continue
+      meta[rule.key] = value
+      break
     }
   }
 
