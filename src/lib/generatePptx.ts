@@ -41,18 +41,30 @@ const STANDARD_RESPONSES: Record<RequirementKind, string[]> = {
     '현행 업무 흐름을 먼저 확인한 뒤 기능 단위로 나누어, 처리 절차와 예외 경로를 설계 산출물에 함께 적습니다.',
     '화면과 데이터 항목을 요구사항 단위로 짝지어, 검수 때 어느 화면에서 확인하는지를 미리 지정해 둡니다.',
     '표준 기능을 기준으로 구성하되 기관 고유 절차는 설정으로 흡수하여, 이후 변경 시 코드를 고치지 않아도 되게 만듭니다.',
+    '요구 기능의 입력과 출력을 먼저 정의하고, 그 정의를 그대로 시험 항목으로 옮겨 구현과 검수가 같은 기준을 보게 합니다.',
+    '기존 업무에서 쓰던 용어와 코드 체계를 그대로 이어받아, 사용자가 새 화면에서 다시 배우지 않아도 되게 합니다.',
+    '기능 사이에 주고받는 데이터를 목록으로 만들어, 한 기능의 변경이 어디까지 닿는지 미리 드러냅니다.',
+    '단계마다 실제로 동작하는 화면을 보여 드리고, 그 자리에서 나온 의견을 다음 단계 범위에 반영합니다.',
   ],
   비기능: [
     '성능·보안·가용성 목표를 설계 기준으로 반영하고, 통합 테스트 단계에서 정량 지표로 충족 여부를 검증합니다.',
     '요구된 수치를 그대로 시험 항목으로 옮겨 두고, 시험 결과서로 달성 여부를 근거와 함께 제출합니다.',
     '설계 단계에서 기준값을 확정하고, 운영 이관 전에 측정 결과를 발주기관과 나란히 놓고 대조합니다.',
     '요구 수준을 아키텍처 결정의 제약으로 삼아, 구현이 끝난 뒤가 아니라 설계 시점에 충족 여부를 판단합니다.',
+    '목표에 못 미치는 구간을 일찍 찾도록 개발 중에도 주기적으로 측정하고, 그 추이를 기록으로 남깁니다.',
+    '측정 조건을 문서로 먼저 합의해, 같은 결과를 두고 해석이 갈리지 않게 합니다.',
+    '한계에 가까워지면 알아차릴 수 있도록 감시 지표를 함께 구성해 운영으로 넘깁니다.',
+    '요구 수준을 채우지 못할 경우의 대안 설계를 함께 준비해, 뒤늦게 구조를 바꾸는 일이 없게 합니다.',
   ],
   기타: [
     '제안요청서에 명시된 조건을 계약 및 수행 계획에 반영하여 준수합니다.',
     '해당 조건을 착수 단계 점검표에 올려, 단계마다 이행 여부를 확인하고 기록으로 남깁니다.',
     '요구된 사항을 수행 계획서에 명시하고, 관련 산출물 제출로 이행을 증빙합니다.',
     '조건 충족 여부를 검수 항목에 포함하여, 사업이 끝나기 전에 발주기관과 함께 확인합니다.',
+    '해당 조건을 담당자와 기한이 붙은 항목으로 관리하여 누락 없이 이행합니다.',
+    '이행 결과를 단계 보고에 포함해, 발주기관이 진행 상황을 그때그때 확인할 수 있게 합니다.',
+    '조건이 바뀌면 영향 범위를 먼저 정리해 협의한 뒤 반영합니다.',
+    '관련 근거 자료를 사업 종료 시 함께 인계하여, 이후 감사와 점검에 대비합니다.',
   ],
 }
 
@@ -148,14 +160,45 @@ function ruleResponse(req: RfpRequirementItem): string | null {
  * 걸리면 문장까지 똑같아지므로, 그때는 아직 덜 쓴 기본 문구로 넘어간다.
  * 문서마다 새로 만들어 쓰므로 요청 사이에 상태가 섞이지 않는다.
  */
-function responseWriter(): (req: RfpRequirementItem) => string {
+type ResponseWriter = (req: RfpRequirementItem, fresh?: boolean) => string
+
+/**
+ * 요구사항의 유형을 원본 목록에서 찾아온다.
+ *
+ * 평가 상세 장이 보는 focus의 근거 요구사항은 id와 문장만 들고 있어 유형을
+ * 모른다. 기본 문구는 유형별로 다르므로, 없는 값을 짐작하지 않고 목록에 물어본다.
+ */
+function kindOf(data: ProposalFormData, id: string): RequirementKind {
+  return data.rfp.requirements.find((r) => r.id === id)?.kind ?? '기타'
+}
+
+/**
+ * 후보가 모두 소진됐을 때 쓰는 마지막 문구.
+ *
+ * 대응을 설명하는 문장이 아니라 무엇을 제출해 확인시켜 드리는지를 말한다.
+ * 산출물 이름은 되풀이돼도 표로 읽히지, 같은 말을 늘어놓은 것으로 읽히지 않는다.
+ */
+const EVIDENCE_BY_KIND: Record<RequirementKind, string> = {
+  기능: '설계 산출물과 단위시험 결과서로 구현 여부를 확인하실 수 있습니다.',
+  비기능: '성능·보안 시험 결과서로 목표 달성 여부를 확인하실 수 있습니다.',
+  기타: '수행계획서와 검수 확인서로 이행 여부를 확인하실 수 있습니다.',
+}
+
+function responseWriter(): ResponseWriter {
   const used = new Map<string, number>()
   const seen = (s: string) => used.get(s) ?? 0
 
-  return (req) => {
+  return (req, fresh = false) => {
     const rule = ruleResponse(req)
     const candidates = [...(rule ? [rule] : []), ...STANDARD_RESPONSES[req.kind]]
-    const pick = candidates.reduce((best, c) => (seen(c) < seen(best) ? c : best), candidates[0])
+
+    // 평가 상세 장은 요구사항 대응 장이 쓴 문장을 다시 쓰지 않는다. 같은 문단이
+    // 두 장에 서면 분량만 늘린 것으로 읽힌다. 남은 후보가 없으면 문장을 억지로
+    // 만들지 않고, 제출 산출물을 말하는 다른 성격의 문구로 넘어간다.
+    const pool = fresh ? candidates.filter((c) => seen(c) === 0) : candidates
+    if (pool.length === 0) return EVIDENCE_BY_KIND[req.kind]
+
+    const pick = pool.reduce((best, c) => (seen(c) < seen(best) ? c : best), pool[0])
     used.set(pick, seen(pick) + 1)
     return pick
   }
@@ -678,7 +721,15 @@ function addAsIsToBe(pptx: Pptx, pal: BrandPalette, data: ProposalFormData, num:
 
   const colW = (BODY_W - 0.3) / 2
   const columns: [string, string, string, { text: string; page: number }[]][] = [
-    ['AS-IS', '현재 상황', pal.gray, (current.length > 0 ? current : background).slice(0, 4)],
+    // 수치가 든 문장을 앞에 둔다. 현황을 수로 말한 문장이 가장 강한 근거다.
+    [
+      'AS-IS',
+      '현재 상황',
+      pal.gray,
+      [...(current.length > 0 ? current : background)]
+        .sort((a, b) => Number(MEASURABLE.test(b.text)) - Number(MEASURABLE.test(a.text)))
+        .slice(0, 4),
+    ],
     ['TO-BE', '제안요청서가 밝힌 목표', pal.brand, targets.slice(0, 4)],
   ]
 
@@ -715,6 +766,7 @@ function addAsIsToBe(pptx: Pptx, pal: BrandPalette, data: ProposalFormData, num:
     )
   })
 }
+
 
 function addRequirementSummary(pptx: Pptx, pal: BrandPalette, data: ProposalFormData, num: Numbering) {
   const { slide, top } = contentSlide(pptx, pal, {
@@ -783,7 +835,13 @@ function addRequirementSummary(pptx: Pptx, pal: BrandPalette, data: ProposalForm
 /** 요구사항이 많으면 한 슬라이드에 다 들어가지 않으므로 나눠 담는다. */
 const ROWS_PER_SLIDE = 4
 
-function addRequirementResponses(pptx: Pptx, pal: BrandPalette, data: ProposalFormData, num: Numbering) {
+function addRequirementResponses(
+  pptx: Pptx,
+  pal: BrandPalette,
+  data: ProposalFormData,
+  num: Numbering,
+  write: ResponseWriter
+) {
   // 여러 장으로 나뉘어도 하나의 장이므로 번호는 한 번만 받는다.
   const eyebrow = `${num.next()} · ${STEP.근거}`
   if (data.rfp.requirements.length === 0) {
@@ -801,8 +859,6 @@ function addRequirementResponses(pptx: Pptx, pal: BrandPalette, data: ProposalFo
   )
 
   const kindColor = kindColors(pal)
-  // 문서 전체에 걸쳐 같은 대응 문장이 두 번 서지 않도록 한 곳에서 발급한다.
-  const write = responseWriter()
   const pages = Math.ceil(reqs.length / ROWS_PER_SLIDE)
   for (let p = 0; p < pages; p++) {
     const chunk = reqs.slice(p * ROWS_PER_SLIDE, (p + 1) * ROWS_PER_SLIDE)
@@ -988,7 +1044,13 @@ function addEvaluation(pptx: Pptx, pal: BrandPalette, data: ProposalFormData, nu
  */
 const EVALUATION_DETAIL_SLIDES = 4
 
-function addEvaluationDetail(pptx: Pptx, pal: BrandPalette, data: ProposalFormData, num: Numbering) {
+function addEvaluationDetail(
+  pptx: Pptx,
+  pal: BrandPalette,
+  data: ProposalFormData,
+  num: Numbering,
+  write: ResponseWriter
+) {
   // focus는 strategy가 만들어 단위를 들고 있지 않으므로 문서 단위를 쓴다.
   const unit = deckScoreUnit(data)
 
@@ -1044,20 +1106,38 @@ function addEvaluationDetail(pptx: Pptx, pal: BrandPalette, data: ProposalFormDa
 
     const listTop = top + 1.25
     if (fresh.length > 0) {
-      slide.addText('이 점수를 뒷받침하는 제안요청서 요구사항', {
+      slide.addText(`${josa(scoreNoun(unit), '이', '가')} 걸린 요구사항과 대응`, {
         x: MARGIN, y: listTop, w: BODY_W, h: 0.26,
         fontFace: FONT, fontSize: 11, bold: true, color: pal.brandDeep,
       })
-      slide.addText(
-        fresh.map((r) => ({
-          text: `${quote(r.text)} (${r.page}p)`,
-          options: { breakLine: true, bullet: { code: '25AA' } },
-        })),
-        {
-          x: MARGIN + 0.15, y: listTop + 0.34, w: BODY_W - 0.15, h: 1.5,
-          fontFace: FONT, fontSize: 10, color: pal.ink, lineSpacingMultiple: 1.45,
-        }
-      )
+      // 근거를 나열만 하면 "무엇이 걸려 있는가"까지만 말하고 끝난다. 옆에 대응을
+      // 붙여야 "이 배점을 어떻게 충족하는가"가 한 장에서 읽힌다.
+      const rows = [
+        tableHeader(pal, ['근거가 되는 제안요청서 요구사항', '대응', '근거']),
+        ...fresh.map((r) => [
+          { text: quote(r.text), options: { color: pal.ink } },
+          {
+            // 이 요구사항이 어느 유형인지는 요구사항 목록이 알고 있다.
+            // fresh를 켜서 요구사항 대응 장이 쓴 문장은 받지 않는다.
+            text: write(
+              { id: r.id, requirement: r.text, kind: kindOf(data, r.id), page: r.page },
+              true
+            ),
+            options: { color: pal.gray },
+          },
+          { text: `${r.page}p`, options: { align: 'center' as const, color: pal.gray } },
+        ]),
+      ]
+
+      const listBottom = H - 0.4
+      slide.addTable(rows, {
+        x: MARGIN, y: listTop + 0.34, w: BODY_W,
+        colW: [3.6, BODY_W - 4.2, 0.6],
+        rowH: Math.min(0.8, (listBottom - listTop - 0.34) / (fresh.length + 1)),
+        fontFace: FONT, fontSize: 9,
+        border: { type: 'solid', color: pal.line, pt: 1 },
+        valign: 'middle', autoPage: false,
+      })
     } else {
       slide.addText(
         sharedOnly
@@ -1874,10 +1954,14 @@ export async function generateProposalPptx(data: ProposalFormData): Promise<Buff
   addRequirementSummary(pptx, pal, data, num)
 
   addStepDivider(pptx, pal, STEP.근거, chaptersOf(STEP.근거))
-  addRequirementResponses(pptx, pal, data, num)
+  // 대응 문구 발급기는 문서에 하나뿐이다. 요구사항 대응 장이 쓴 문장을
+  // 평가 상세 장이 다시 쓰지 않도록, 같은 장부를 두 장이 나눠 본다.
+  const write = responseWriter()
+
+  addRequirementResponses(pptx, pal, data, num, write)
   addScoreChart(pptx, pal, data, num)
   addEvaluation(pptx, pal, data, num)
-  addEvaluationDetail(pptx, pal, data, num)
+  addEvaluationDetail(pptx, pal, data, num, write)
   addExpectedEffect(pptx, pal, data, num)
 
   addStepDivider(pptx, pal, STEP.실행, chaptersOf(STEP.실행))
